@@ -1,0 +1,198 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
+def localProperties = new Properties()
+def localPropertiesFile = rootProject.file('local.properties')
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.withReader('UTF-8') { reader ->
+        localProperties.load(reader)
+    }
+}
+
+def flutterRoot = localProperties.getProperty('flutter.sdk')
+if (flutterRoot == null) {
+    throw new GradleException("Flutter SDK not found. Define location with flutter.sdk in the local.properties file.")
+}
+
+def flutterVersionCode = localProperties.getProperty('flutter.versionCode')
+if (flutterVersionCode == null) {
+    flutterVersionCode = '2'
+}
+
+def flutterVersionName = localProperties.getProperty('flutter.versionName')
+if (flutterVersionName == null) {
+    flutterVersionName = '1.1'
+}
+
+
+apply plugin: 'com.android.application'
+apply plugin: 'kotlin-android'
+apply plugin: 'kotlin-kapt'
+apply plugin: 'dagger.hilt.android.plugin'
+apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
+
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file('key.properties')
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+android {
+    compileSdkVersion 34
+    sourceSets {
+        main.java.srcDirs += 'src/main/kotlin'
+    }
+    buildFeatures {
+        buildConfig = true
+        compose = true
+        viewBinding true
+
+
+    }
+    defaultConfig {
+        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
+        applicationId "com.sales_app_zainjo"
+        minSdkVersion 24
+        targetSdkVersion 34
+        versionCode flutterVersionCode.toInteger()
+        versionName flutterVersionName
+
+
+
+    }
+    signingConfigs {
+        release {
+            release {
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+                storeFile keystoreProperties['storeFile'] ? file(keystoreProperties['storeFile']) : null
+                storePassword keystoreProperties['storePassword']
+            }
+        }
+    }
+    buildTypes {
+        release {
+            // minifyEnabled true
+            //  proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            //euronovate
+            buildConfigField("String", 'ENAUTH_JWT', "\"eyJhbGciOiJSUzI1NiJ9.eyJlbmMiOnsicHJkIjoie1wiRU5fTUFQX0FORF9NT0JEU0tcIjp7XCJwcmNcIjpcIk1BUEFORFwiLFwicHJzXCI6XCJNT0JEU0tcIixcImNzdFwiOm51bGwsXCJ1cHJcIjpbXCJSRUFERVJcIl0sXCJleHB0a25cIjowLFwiZXhwcHJkXCI6MjUyNzE5NjQwMDAwMCxcImlzc1wiOjE3MTgwMDgxOTEwMDN9LFwiRU5fTUFQX0lPU19NT0JEU0tcIjp7XCJwcmNcIjpcIk1BUElPU1wiLFwicHJzXCI6XCJNT0JEU0tcIixcImNzdFwiOm51bGwsXCJ1cHJcIjpbXCJSRUFERVJcIl0sXCJleHB0a25cIjowLFwiZXhwcHJkXCI6MjUyNzE5NjQwMDAwMCxcImlzc1wiOjE3MTgwMDgxOTEwMDN9fSIsImRpZCI6bnVsbCwibGNkIjoie1wib3duXCI6bnVsbCxcInV1aWRcIjpcIjhlM2QzMmU4LWE0OGItNGQ0OC04MDA3LWQ1MGJiMDAyYzJlY1wiLFwidXNyXCI6bnVsbCxcImNzc1wiOlwiS1lDS1lDXCIsXCJjc2NcIjpcIlpBSU5OTlwifSIsInVzciI6ImVubW9iYXBwIiwiYWRkIjp7fSwic3RsIjp0cnVlfSwianRpIjoiN2E4NDk2Y2EtNTkzMi00NTMyLWJjYjgtNzUwYTdmMGZhZjU3IiwiaWF0IjoxNzE4MDA4MjU5LCJpc3MiOiJlbmF1dGgiLCJzdWIiOiI4ZTNkMzJlOC1hNDhiLTRkNDgtODAwNy1kNTBiYjAwMmMyZWMifQ.VYznhW3FeYY0VkuYVOJMonxd8OcVYzFf-lqZf_kROJRKZrLnLrFLrVovX8Gz3_E-79mb8UM2nK_TttxJJX4P-yUu7Wy8OozYldTyY1F4AeVU7Fn3LkrdjB8UY8iIeaeL7STKDOFaN8z_2VF2B23JpP3MvaaoiOIJvoqCSCtvY8a--h44e4xKt-DLPbSfETTCLnIP0UiEK04rbYcFlbq_ks4L-X_jGPUj1JNIsN0IQvGY9UbTOPsjZEV9-igl2rx0COXA_GCkhk6fLUzdw25wBokx7ACNZ0QnSR1-9P_-DXWWJug6vJnNXa0zRqi5VsdrXtclgiFb0sPnCmVMvfKZGA\"")
+            buildConfigField("String", 'OCR_URL_EN_PREPROD', "\"https://079.jo/idcrecon/v2\"")
+            buildConfigField("String", 'AUTH_OCR_URL', "\"https://079.jo/auth/realms/zain/protocol/openid-connect/token\"")
+            buildConfigField("String", 'AUTH_OCR_TENANT', "\"\"")
+            buildConfigField("String", 'AUTH_OCR_USER', "\"idcrecon@euronovate.com\"")
+            buildConfigField("String", 'AUTH_OCR_PASSWORD', "\"sUcAFU36MC\"")
+            buildConfigField("String", 'VISION_URL', "\"https://079.jo/envisionbroker/\"")
+            buildConfigField("String", 'AUTH_VISION_URL', "\"https://079.jo/auth/realms/zain/protocol/openid-connect/token\"")
+            buildConfigField("String", 'AUTH_VISION_TENANT', "\"\"")
+            buildConfigField("String", 'AUTH_VISION_USER', "\"ekyc@079.jo\"")// "visionbroker@euronovate.com"
+            buildConfigField("String", 'AUTH_VISION_PASSWORD', "\"sUcAFU36MC\"")// "QB6UNk3GCAuot3wuNyJE"
+            signingConfig signingConfigs.release
+            ndk {
+                abiFilters "armeabi-v7a", "armv7a", "arm64-v8a", "x86", "x86_64"
+            }
+            externalNativeBuild {
+                cmake {
+                    cppFlags "-fstack-protector"
+                }
+            }
+
+
+        }
+        debug {
+            buildConfigField("String", 'ENAUTH_JWT', "\"eyJhbGciOiJSUzI1NiJ9.eyJlbmMiOnsicHJkIjoie1wiRU5fTUFQX0FORF9NT0JEU0tcIjp7XCJwcmNcIjpcIk1BUEFORFwiLFwicHJzXCI6XCJNT0JEU0tcIixcImNzdFwiOm51bGwsXCJ1cHJcIjpbXCJSRUFERVJcIl0sXCJleHB0a25cIjowLFwiZXhwcHJkXCI6MjUyNzE5NjQwMDAwMCxcImlzc1wiOjE3MTgwMDgxOTEwMDN9LFwiRU5fTUFQX0lPU19NT0JEU0tcIjp7XCJwcmNcIjpcIk1BUElPU1wiLFwicHJzXCI6XCJNT0JEU0tcIixcImNzdFwiOm51bGwsXCJ1cHJcIjpbXCJSRUFERVJcIl0sXCJleHB0a25cIjowLFwiZXhwcHJkXCI6MjUyNzE5NjQwMDAwMCxcImlzc1wiOjE3MTgwMDgxOTEwMDN9fSIsImRpZCI6bnVsbCwibGNkIjoie1wib3duXCI6bnVsbCxcInV1aWRcIjpcIjhlM2QzMmU4LWE0OGItNGQ0OC04MDA3LWQ1MGJiMDAyYzJlY1wiLFwidXNyXCI6bnVsbCxcImNzc1wiOlwiS1lDS1lDXCIsXCJjc2NcIjpcIlpBSU5OTlwifSIsInVzciI6ImVubW9iYXBwIiwiYWRkIjp7fSwic3RsIjp0cnVlfSwianRpIjoiN2E4NDk2Y2EtNTkzMi00NTMyLWJjYjgtNzUwYTdmMGZhZjU3IiwiaWF0IjoxNzE4MDA4MjU5LCJpc3MiOiJlbmF1dGgiLCJzdWIiOiI4ZTNkMzJlOC1hNDhiLTRkNDgtODAwNy1kNTBiYjAwMmMyZWMifQ.VYznhW3FeYY0VkuYVOJMonxd8OcVYzFf-lqZf_kROJRKZrLnLrFLrVovX8Gz3_E-79mb8UM2nK_TttxJJX4P-yUu7Wy8OozYldTyY1F4AeVU7Fn3LkrdjB8UY8iIeaeL7STKDOFaN8z_2VF2B23JpP3MvaaoiOIJvoqCSCtvY8a--h44e4xKt-DLPbSfETTCLnIP0UiEK04rbYcFlbq_ks4L-X_jGPUj1JNIsN0IQvGY9UbTOPsjZEV9-igl2rx0COXA_GCkhk6fLUzdw25wBokx7ACNZ0QnSR1-9P_-DXWWJug6vJnNXa0zRqi5VsdrXtclgiFb0sPnCmVMvfKZGA\"")
+            buildConfigField("String", 'OCR_URL_EN_PREPROD', "\"https://079.jo/idcrecon/v2\"")
+            buildConfigField("String", 'AUTH_OCR_URL', "\"https://079.jo/auth/realms/zain/protocol/openid-connect/token\"")
+            buildConfigField("String", 'AUTH_OCR_TENANT', "\"\"")
+            buildConfigField("String", 'AUTH_OCR_USER', "\"idcrecon@euronovate.com\"")
+            buildConfigField("String", 'AUTH_OCR_PASSWORD', "\"sUcAFU36MC\"")
+            buildConfigField("String", 'VISION_URL', "\"https://079.jo/envisionbroker/\"")
+            buildConfigField("String", 'AUTH_VISION_URL', "\"https://079.jo/auth/realms/zain/protocol/openid-connect/token\"")
+            buildConfigField("String", 'AUTH_VISION_TENANT', "\"\"")
+            buildConfigField("String", 'AUTH_VISION_USER', "\"ekyc@079.jo\"")// "visionbroker@euronovate.com"
+            buildConfigField("String", 'AUTH_VISION_PASSWORD', "\"sUcAFU36MC\"")// "QB6UNk3GCAuot3wuNyJE"
+        }
+
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+
+    }
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+    kotlin {
+        jvmToolchain {
+            languageVersion.set(JavaLanguageVersion.of(17))
+        }
+    }
+    composeOptions {
+        kotlinCompilerExtensionVersion = "1.4.1"
+
+    }
+
+}
+
+flutter {
+    source '../..'
+}
+
+dependencies {
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
+    implementation "com.euronovate.mobile:ocr-vision:1.0.5"
+    implementation 'androidx.core:core-ktx:1.10.1'
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'com.google.android.material:material:1.9.0'
+    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+    implementation "org.jetbrains.kotlin:kotlin-stdlib:1.8.21"
+// hilt / dagger
+    implementation "com.google.dagger:hilt-android:2.46.1"
+    kapt "com.google.dagger:hilt-android-compiler:2.46.1"
+    kapt 'androidx.hilt:hilt-compiler:1.0.0'
+    implementation 'androidx.hilt:hilt-navigation-compose:1.0.0'
+// compose / navigation
+    def composeBom = platform('androidx.compose:compose-bom:2023.06.00')
+    implementation composeBom
+    androidTestImplementation composeBom
+    implementation 'androidx.compose.material3:material3'
+    implementation 'androidx.compose.material:material'
+    implementation 'androidx.compose.foundation:foundation'
+    implementation 'androidx.compose.ui:ui'
+    implementation 'androidx.compose.ui:ui-tooling-preview'
+    debugImplementation 'androidx.compose.ui:ui-tooling'
+    androidTestImplementation 'androidx.compose.ui:ui-test-junit4'
+    debugImplementation 'androidx.compose.ui:ui-test-manifest'
+    implementation 'androidx.compose.material:material-icons-core'
+    implementation 'androidx.compose.material:material-icons-extended'
+    implementation 'androidx.compose.material3:material3-window-size-class'
+    implementation 'androidx.activity:activity-compose:1.7.2'
+    implementation 'androidx.lifecycle:lifecycle-viewmodel-compose:2.6.1'
+    implementation 'androidx.compose.runtime:runtime-livedata'
+    implementation 'androidx.compose.runtime:runtime-rxjava2'
+    implementation 'androidx.navigation:navigation-compose:2.6.0'
+    implementation 'androidx.navigation:navigation-fragment-ktx:2.6.0'
+    implementation 'androidx.navigation:navigation-ui-ktx:2.6.0'
+    implementation 'androidx.navigation:navigation-fragment-ktx:2.6.0'
+// camerax
+    def camerax_version = "1.2.3"
+    implementation "androidx.camera:camera-core:${camerax_version}"
+    implementation "androidx.camera:camera-camera2:${camerax_version}"
+    implementation "androidx.camera:camera-lifecycle:${camerax_version}"
+    implementation "androidx.camera:camera-video:${camerax_version}"
+    implementation "androidx.camera:camera-view:${camerax_version}"
+    implementation "androidx.camera:camera-extensions:${camerax_version}"
+// OkHttp
+    implementation(platform("com.squareup.okhttp3:okhttp-bom:4.11.0"))
+    implementation "com.squareup.okhttp3:okhttp"
+    implementation 'com.google.code.gson:gson:2.9.1'
+// Euronovate
+    implementation "com.euronovate.mobile:ocr-vision:1.0.3"
+    implementation "com.euronovate.mobilesdk:core:1.3.3"
+    implementation "androidx.security:security-crypto:1.1.0-alpha03"
+    api 'io.jsonwebtoken:jjwt-api:0.10.7'
+    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.10.7'
+    runtimeOnly('io.jsonwebtoken:jjwt-orgjson:0.10.7') {
+        exclude group: 'org.json', module: 'json'
+    }
+
+}

@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">EN Ocr Vision Sample</string>
+
+    <string name="bottom_bar_text">Bottom bar</string>
+    <string name="top_bar_text">Top bar</string>
+
+    <string name="setup">Setup</string>
+    <string name="ocr">Ocr</string>
+    <string name="liveness_facematch">Liveness</string>
+    <string name="init_sdk">Init SDK</string>
+
+    <string name="go_to_mrz">Ocr</string>
+    <string name="go_to_liveness">Liveness</string>
+    <string name="go_to_simple_liveness">Simple Liveness</string>
+    <string name="create_log">Create Log</string>
+
+
+    <string name="back">Back</string>
+
+    <string name="all_rights_reserved">&#169; All rights reserved</string>
+
+    <string name="unknown_result">Unknown result (null)</string>
+    <string name="cancel">CANCEL</string>
+    <string name="ok">OK</string>
+</resources>

@@ -1,0 +1,882 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:easy_localization/easy_localization.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_styled_toast/flutter_styled_toast.dart';
+import 'package:flutter_windowmanager/flutter_windowmanager.dart';
+import 'package:http/http.dart' as http;
+import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:sales_app/Views/HomeScreens/Corporate/MainPages/Home/Subscriber360view.dart';
+
+import 'package:sales_app/Views/LoginScreens/SignInScreen.dart';
+import 'package:sales_app/Shared/BaseUrl.dart';
+
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../../../Multi_Use_Components/RequiredField.dart';
+import '../MainPromotions/CustomerEligibleLines.dart';
+import '../MainPromotions/LineActiveSubsidy.dart';
+
+
+
+
+
+class UpdateUserInfo extends StatefulWidget {
+  List<dynamic> PermessionCorporate;
+
+  String role;
+  String customerNumber;
+  String msisdn;
+  int searchID;
+  String searchValue;
+  String searchCraretia;
+  List data=[];
+  UpdateUserInfo(this.PermessionCorporate, this.role,this.searchID,this.searchValue,this.customerNumber,this.msisdn,this.data,this.searchCraretia);
+  @override
+  _UpdateUserInfoState createState() =>
+      _UpdateUserInfoState(this.PermessionCorporate, this.role,this.searchID,this.searchValue,this.customerNumber,this.msisdn,this.data,this.searchCraretia);
+}
+
+APP_URLS urls = new APP_URLS();
+
+class _UpdateUserInfoState extends State<UpdateUserInfo> {
+  var iosSecureScreenShotChannel = const MethodChannel('secureScreenshotChannel');
+
+  DateTime backButtonPressedTime;
+  //String PermessionCorporate;
+  final List<dynamic> PermessionCorporate;
+  String role;
+  String customerNumber;
+  String msisdn;
+  int searchID;
+  String searchValue;
+  String searchCraretia;
+  List data=[];
+  bool isLoading = false;
+  bool  isLoadingSubmit =false;
+  bool isListed=true;
+  var subscriberName ='';
+
+
+  bool emptySubscriberName=false;
+  TextEditingController SubscriberNameText = TextEditingController();
+
+  _UpdateUserInfoState(this.PermessionCorporate, this.role,this.searchID,this.searchValue,this.customerNumber,this.msisdn,this.data,this.searchCraretia);
+
+
+  //*******************   List Item for First Menu    ****************/
+  List litemsFirst = [
+    ListContentFirst(name:"corpMenu.Customer_360_View".tr().toString()),
+    ListContentFirst(name:"corpMenu.Subscriber_360_View".tr().toString()),
+    ListContentFirst(name:"corpMenu.Subscriber_List".tr().toString()),
+    ListContentFirst(name:"corpMenu.Subscriber_Services".tr().toString()),
+    ListContentFirst(name:"corpMenu.Kurmalek".tr().toString()),
+    ListContentFirst(name:"corpMenu.Balance".tr().toString()),
+    ListContentFirst(name:"corpMenu.Subscriber_Services".tr().toString()),
+
+  ];
+  //*******************   End List Item for First Menu    ****************/
+
+
+  UnotherizedError() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    prefs.setBool('is_logged_in', false);
+    prefs.setBool('biomitric_is_logged_in', false);
+    prefs.setBool('TokenError', true);
+    prefs.remove("accessToken");
+    //prefs.remove("userName");
+    prefs.remove('counter');
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SignInScreen(),
+      ),
+    );
+
+  }
+
+  @override
+  void initState() {
+    print("UnotherizedError");
+    print("role role role role role");
+    print(data);
+    print(role);
+    if (PermessionCorporate == null) {
+      UnotherizedError();
+    }else{
+
+    }
+
+    getUserIVRInfo_API();
+   // disableCapture();
+    //iosSecureScreenShotChannel.invokeMethod("secureiOS");
+
+    super.initState();
+  }
+  @override
+  void dispose() {
+
+    // this method to the user can take screenshots of your application
+   // iosSecureScreenShotChannel.invokeMethod("secureiOS");
+
+    // TODO: implement dispose
+    super.dispose();
+  }
+  disableCapture() async{
+    await FlutterWindowManager.addFlags(FlutterWindowManager.FLAG_SECURE);
+    print("____________________________________________");
+  }
+
+  showAlertDialogERROR(BuildContext context, arabicMessage, englishMessage) {
+    Widget tryAgainButton = TextButton(
+      child: Text(
+        "alert.tryAgain".tr().toString(),
+        style: TextStyle(
+          color: Color(0xFF392156),
+          fontSize: 16,
+        ),
+      ),
+      onPressed: () {
+        Navigator.of(context).pop();
+      },
+    );
+    // Create AlertDialog
+    AlertDialog alert = AlertDialog(
+      content: Text(
+        EasyLocalization.of(context).locale == Locale("en", "US")
+            ? englishMessage
+            : arabicMessage,
+        style: TextStyle(
+          color: Colors.black,
+          fontSize: 16,
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () {
+            Navigator.pop(context, 'OK');
+          },
+          child: Text(
+            "alert.cancel".tr().toString(),
+            style: TextStyle(
+              color: Color(0xFF392156),
+              fontSize: 16,
+            ),
+          ),
+        )
+      ],
+    );
+
+    // show the dialog
+    showDialog(
+      barrierDismissible: false,
+      context: context,
+      builder: (BuildContext context) {
+        return alert;
+      },
+    );
+  }
+  showAlertDialogUnotherizedERROR(BuildContext context, arabicMessage, englishMessage) {
+    Widget tryAgainButton = TextButton(
+      child: Text(
+        "alert.tryAgain".tr().toString(),
+        style: TextStyle(
+          color: Color(0xFF392156),
+          fontSize: 16,
+        ),
+      ),
+      onPressed: () {
+        Navigator.of(context).pop();
+      },
+    );
+    // Create AlertDialog
+    AlertDialog alert = AlertDialog(
+      content: Text(
+        EasyLocalization.of(context).locale == Locale("en", "US")
+            ? englishMessage
+            : arabicMessage,
+        style: TextStyle(
+          color: Colors.black,
+          fontSize: 16,
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () {
+            UnotherizedError();
+          },
+          child: Text(
+            "corpAlert.close".tr().toString(),
+            style: TextStyle(
+              color: Color(0xFF392156),
+              fontSize: 16,
+            ),
+          ),
+        )
+      ],
+    );
+
+    // show the dialog
+    showDialog(
+      barrierDismissible: false,
+      context: context,
+      builder: (BuildContext context) {
+        return alert;
+      },
+    );
+  }
+  showAlertDialogOtherERROR(BuildContext context, arabicMessage, englishMessage) {
+    Widget tryAgainButton = TextButton(
+      child: Text(
+        "alert.tryAgain".tr().toString(),
+        style: TextStyle(
+          color: Color(0xFF392156),
+          fontSize: 16,
+        ),
+      ),
+      onPressed: () {
+        Navigator.of(context).pop();
+      },
+    );
+    // Create AlertDialog
+    AlertDialog alert = AlertDialog(
+      content: Text(
+        EasyLocalization.of(context).locale == Locale("en", "US")
+            ? englishMessage
+            : arabicMessage,
+        style: TextStyle(
+          color: Colors.black,
+          fontSize: 16,
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () {
+            Navigator.of(context).pop();
+          },
+          child: Text(
+            "corpAlert.close".tr().toString(),
+            style: TextStyle(
+              color: Color(0xFF392156),
+              fontSize: 16,
+            ),
+          ),
+        )
+      ],
+    );
+
+    // show the dialog
+    showDialog(
+      barrierDismissible: false,
+      context: context,
+      builder: (BuildContext context) {
+        return alert;
+      },
+    );
+  }
+  showAlertDialogNoData(BuildContext context, arabicMessage, englishMessage) {
+    Widget tryAgainButton = TextButton(
+      child: Text(
+        "alert.tryAgain".tr().toString(),
+        style: TextStyle(
+          color: Color(0xFF392156),
+          fontSize: 16,
+        ),
+      ),
+      onPressed: () {
+        Navigator.of(context).pop();
+      },
+    );
+    // Create AlertDialog
+    AlertDialog alert = AlertDialog(
+      content: Text(
+        EasyLocalization.of(context).locale == Locale("en", "US")
+            ? englishMessage
+            : arabicMessage,
+        style: TextStyle(
+          color: Colors.black,
+          fontSize: 16,
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () {
+            Navigator.of(context).pop();
+          },
+          child: Text(
+            "corpAlert.close".tr().toString(),
+            style: TextStyle(
+              color: Color(0xFF392156),
+              fontSize: 16,
+            ),
+          ),
+        )
+      ],
+    );
+
+    // show the dialog
+    showDialog(
+      barrierDismissible: false,
+      context: context,
+      builder: (BuildContext context) {
+        return alert;
+      },
+    );
+  }
+
+
+
+
+
+  getUserIVRInfo_API() async{
+      setState(() {
+
+        isLoading=true;
+      });
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+
+      var apiArea = urls.BASE_URL + '/Customer360/getUserIVRInfo';
+
+      final Uri url = Uri.parse(apiArea);
+
+      Map body = {
+        "customerID": customerNumber,
+        "msisdn": msisdn
+
+      };
+      final response = await http.post(url, headers: {
+        "content-type": "application/json",
+        "Authorization": prefs.getString("accessToken")
+      },body: json.encode(body),);
+      int statusCode = response.statusCode;
+      print(statusCode);
+      if (statusCode == 500) {
+        print('500  error ');
+
+      }
+      if(statusCode==401 ){
+        print('401  error ');
+        UnotherizedError();
+       // showAlertDialogUnotherizedERROR(context,"تحتاج إلى إعادة تسجيل الدخول", "Need to re-registration");
+
+      }
+      if (statusCode == 200) {
+
+
+        setState(() {
+
+          isLoading=false;
+        });
+        var result = json.decode(response.body);
+
+
+
+        if( result["status"]==0){
+          if(result["data"]==null){
+            showAlertDialogNoData(context,"لا توجد بيانات متاحة الآن.", "No data available now .");
+
+
+          }else{
+
+            print(result["data"]);
+
+          setState(() {
+            isListed=result['data']['isListed'];
+            subscriberName=result['data']['subscriberName'];
+          });
+
+
+
+          }
+
+        }else{
+          showAlertDialogERROR(context,result["messageAr"], result["message"]);
+
+          setState(() {
+
+            isLoading=false;
+
+          });
+
+        }
+
+
+
+
+
+      }
+      else{
+        showAlertDialogOtherERROR(context,statusCode.toString(), statusCode.toString());
+        setState(() {
+
+          isLoading=false;
+        });
+      }
+    }
+
+  updateUserIVRInfoZainService_API() async{
+
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+
+    var apiArea = urls.BASE_URL + '/Customer360/updateUserIVRInfoZainService';
+    setState(() {
+      isLoadingSubmit=true;
+    });
+    final Uri url = Uri.parse(apiArea);
+
+    Map body = {
+      "isListed": isListed,
+      "msisdn": msisdn,
+      "customerID": customerNumber
+
+    };
+    final response = await http.post(url, headers: {
+      "content-type": "application/json",
+      "Authorization": prefs.getString("accessToken")
+    },body: json.encode(body),);
+    int statusCode = response.statusCode;
+    print(statusCode);
+    if (statusCode == 500) {
+      print('500  error ');
+
+    }
+    if(statusCode==401 ){
+      print('401  error ');
+      UnotherizedError();
+     // showAlertDialogUnotherizedERROR(context,"تحتاج إلى إعادة تسجيل الدخول", "Need to re-registration");
+
+    }
+    if (statusCode == 200) {
+
+
+      setState(() {
+
+        isLoadingSubmit=false;
+      });
+      var result = json.decode(response.body);
+
+
+
+      if( result["status"]==0){
+        showToast(
+            EasyLocalization.of(context).locale == Locale("en", "US")
+                ? result["message"]
+                : result["messageAr"],
+            context: context,
+            animation: StyledToastAnimation.scale,
+            fullWidth: true);
+
+
+      }else{
+        showAlertDialogERROR(context,result["messageAr"], result["message"]);
+
+        setState(() {
+
+          isLoadingSubmit=false;
+
+        });
+
+      }
+
+
+
+
+
+    }
+    else{
+      showAlertDialogOtherERROR(context,statusCode.toString(), statusCode.toString());
+      setState(() {
+
+        isLoadingSubmit=false;
+      });
+    }
+  }
+
+
+
+  Widget buildSubscriberName() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        RichText(
+          text: TextSpan(
+            text: "SubscriberServices.SubscriberName".tr().toString(),
+            style: TextStyle(
+              color: Color(0xFF11120E),
+              fontSize: 14,
+              fontWeight: FontWeight.normal,
+            ),
+
+          ),
+        ),
+        SizedBox(height: 10),
+        Container(
+          // margin: EdgeInsets.symmetric(horizontal: 30),
+          alignment: Alignment.centerLeft,
+          decoration: BoxDecoration(
+              color: emptySubscriberName==true
+                  ? Color(0xFFB10000).withOpacity(0.1)
+                  : Colors.white,
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(
+                color: emptySubscriberName ? Color(0xFFb10000) : Color(0xFFD1D7E0),
+                width:  1,
+              )),
+          height: 58,
+          child: TextField(
+            controller: SubscriberNameText,
+            keyboardType: TextInputType.text,
+            style: TextStyle(color: Color(0xFF11120E)),
+            decoration: InputDecoration(
+              border: InputBorder.none,
+              contentPadding: EdgeInsets.all(16),
+              hintText: "SubscriberServices.enter_SubscriberName".tr().toString(),
+              hintStyle: TextStyle(color: Color(0xFFA4B0C1), fontSize: 14),
+            ),
+          ),
+        ),
+        emptySubscriberName  == true
+            ? RequiredFeild(
+            text: "Menu_Form.msisdn_required".tr().toString())
+            : Container(),
+
+      ],
+    );
+  }
+  Widget buildIsListed() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        RichText(
+          text: TextSpan(
+            text: "SubscriberServices.is_listed".tr().toString(),
+            style: TextStyle(
+              color: Color(0xFF11120E),
+              fontSize: 14,
+              fontWeight: FontWeight.normal,
+            ),
+
+          ),
+        ),
+        SizedBox(height: 10),
+
+        Container(
+          child:  Container(
+              padding: EdgeInsets.only(right: 10),
+              child: Row(
+                children: [
+
+                  GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        isListed = true;
+                      });
+                    },
+                    child: Container(
+
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+
+                            decoration:
+                            BoxDecoration(
+                                border: Border.all(
+                                  color: isListed?Color(0xFF0E7074): Colors.grey,
+                                  width: 1,
+                                ),
+                                shape: BoxShape.circle,
+                                color: isListed==false?Colors.white: Color(0xFF0E7074)
+
+                            ),
+
+                            padding: EdgeInsets.all(1),
+                            child: isListed
+                                ? Icon(
+                              Icons.check,
+                              size:   15.0,
+                              color: Colors.white,
+                            )
+                                : Icon(
+                              Icons.check,
+                              size: 15.0,
+                              color:Colors.white,
+                            ),
+                          ),
+
+                          SizedBox(width: 10,),
+                          Text(
+                            "SubscriberServices.yes"
+                                .tr()
+                                .toString(),
+                          ),
+
+
+                        ],
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: 30,),
+                  GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        isListed = false;
+                      });
+                    },
+                    child: Container(
+
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+
+                            decoration:
+                            BoxDecoration(
+                                border: Border.all(
+                                  color: !isListed?Color(0xFF0E7074): Colors.grey,
+                                  width: 1,
+                                ),
+                                shape: BoxShape.circle,
+                                color: !isListed==false?Colors.white: Color(0xFF0E7074)
+
+                            ),
+
+                            padding: EdgeInsets.all(1),
+                            child: !isListed
+                                ? Icon(
+                              Icons.check,
+                              size:   15.0,
+                              color: Colors.white,
+                            )
+                                : Icon(
+                              Icons.check,
+                              size: 15.0,
+                              color:Colors.white,
+                            ),
+                          ),
+
+
+                          SizedBox(width: 10,),
+                          Text(
+                            "SubscriberServices.no"
+                                .tr()
+                                .toString(),
+                          ),
+
+
+                        ],
+                      ),
+                    ),
+                  )
+
+
+                ],
+              )
+          ),
+        )
+
+      ],
+    );
+  }
+
+
+  Future<bool> onWillPop() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    DateTime currentTime = DateTime.now();
+    bool backButton = backButtonPressedTime == null ||
+        currentTime.difference(backButtonPressedTime) > Duration(seconds: 0);
+    if (backButton) {
+      backButtonPressedTime = currentTime;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => Subscriber360view(PermessionCorporate, role,searchID,searchValue,customerNumber,msisdn,data,searchCraretia),
+        ),
+
+      );
+      return true;
+    }
+    return true;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return WillPopScope(
+      onWillPop: onWillPop,
+      child: GestureDetector(
+        onTap: ()=>FocusScope.of(context).unfocus(),
+        child: Scaffold(
+          appBar: AppBar(
+            backgroundColor: Color(0xFF392156),
+            title: Text("SubscriberServices.update_user_info".tr().toString(),),
+            leading: IconButton(
+              icon: Icon(Icons.arrow_back),
+              onPressed: () async{
+                Navigator.pop(context);
+              },
+            ), //<Widget>[]
+
+            /* actions: <Widget>[
+                IconButton(
+                  icon:  Icon(Icons.more_vert,color: Colors.white,),
+                  onPressed: ( _showMoreOptionDialog) ,
+                ), //IconButton//IconButton
+              ],*/
+          ),
+          backgroundColor: Color(0xFFEBECF1),
+          /* appBar: AppBarSectionCorporate(
+              appBar: AppBar(),
+              title: Text("DashBoard_Form.home".tr().toString()),
+              actions: <Widget>[
+                IconButton(
+                  icon: const Icon(Icons.notifications_none),
+                  onPressed: () {},
+                ), //IconButton//IconButton
+              ],
+              PermessionCorporate: PermessionCorporate,
+              role: role,
+              outDoorUserName: outDoorUserName,
+            ),*/
+          body:  isLoading==true?Container(
+              width: double.infinity,
+              height: MediaQuery
+                  .of(context)
+                  .size
+                  .height / 3 * 1.9,
+              padding: EdgeInsets.only(left: 26, right: 26, top: 30),
+              // margin: EdgeInsets.all(12),
+              margin: EdgeInsets.only(top: 60),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  SizedBox(
+                    child: CircularProgressIndicator(color: Color(0xFF392156)),
+                    height: 20.0,
+                    width: 20.0,
+                  ),
+                  SizedBox(width: 24),
+                  Text("corporetUser.PleaseWait".tr().toString(),
+                    style: TextStyle(fontWeight: FontWeight.bold,
+                        color: Color(0xFF392156),
+                        fontSize: 16),)
+                ],
+
+              ))
+              :Container(
+                color: Colors.white,
+                padding: EdgeInsets.only(top:20,left: 26,right: 26),
+                child: role == "Corporate"
+                ? Column(
+
+
+
+                  children: [
+                    ///////////////////////////////////Second Content//////////////////////////////////////////////////////////
+                    Container(
+                      color: Colors.white,
+                      width: double.infinity,
+                      // margin: EdgeInsets.all(12),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.start,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Container(
+                            margin: EdgeInsets.only(
+                                top: 18, bottom: 5, ),
+                            color: Color(0xff392156),
+                            width: 5,
+                            height: 38,
+                          ),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Container(
+                              margin: EdgeInsets.only(top: 10),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    "SubscriberServices.SubscriberName"
+                                        .tr()
+                                        .toString(),
+                                  ),
+                                  SizedBox(height: 1),
+                                  Text(
+                                    subscriberName,
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14.0,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    SizedBox(height: 20,),
+                    buildIsListed()
+
+
+
+
+                  ],
+                ):Container(),
+              ),
+                 floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+                 floatingActionButton:  isLoading==true?Container(): Container(
+                  height:48,
+                  width:360,
+                  decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(20),
+                      color: Colors.transparent),
+                  child:FloatingActionButton.extended(
+                    label: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+
+                        isLoadingSubmit==true?SizedBox(
+                          child: CircularProgressIndicator(color: Colors.white ),
+                          height: 20.0,
+                          width: 20.0,
+                        )
+                            :Container(),
+                        SizedBox(width: 10,),
+                        Text(
+                          "SubscriberServices.submit".tr().toString(),
+                          style: TextStyle(
+                              color: Colors.white,
+                              letterSpacing: 0,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                    backgroundColor: Color(0xFF0E7074), //child widget inside this button
+
+                    onPressed: isLoadingSubmit==true?null: (){
+
+                      updateUserIVRInfoZainService_API();
+                    },
+                  ),
+                ),
+
+        ),
+      ),
+
+      ///////////////////////////////////End Second Content//////////////////////////////////////////////////////////
+
+
+
+
+    );
+  }
+}
