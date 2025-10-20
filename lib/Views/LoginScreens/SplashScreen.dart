@@ -255,23 +255,138 @@ class _SplashScreenState extends State<SplashScreen> {
     }
   }
 
-  @override
-  void initState() {
-    super.initState();
-    //getAndroidVersion () ;
+  // @override
+  // void initState() {
+  //   super.initState();
+  //   //getAndroidVersion () ;
 
-    _getPlatform();
+  //   _getPlatform();
 
-    /*if(Platform.isAndroid){
-      _getManufacturer();
-      print("Android MODE");
-    }
-    if (Platform.isIOS){
-      print("IOS MODE");
-      getIOSVersion ();
-    }*/
+  //   /*if(Platform.isAndroid){
+  //     _getManufacturer();
+  //     print("Android MODE");
+  //   }
+  //   if (Platform.isIOS){
+  //     print("IOS MODE");
+  //     getIOSVersion ();
+  //   }*/
+  // }
+@override
+void initState() {
+  super.initState();
+  // Skip version checking - directly navigate after a short delay
+  Timer(Duration(seconds: 1), () {
+    _navigateBasedOnLoginState();
+  });
+}
+
+Future<void> _navigateBasedOnLoginState() async {
+  SharedPreferences prefs = await SharedPreferences.getInstance();
+  
+  bool firstTime = await isFirstTime();
+  if (firstTime) {
+    setFirstFunction();
+    return;
   }
-
+  
+  if (prefs.getBool('biomitric_is_logged_in') == true) {
+    _authenticate();
+    return;
+  }
+  
+  if (prefs.getBool('is_logged_in') == true) {
+    String role = prefs.getString('role');
+    
+    // Navigate based on role
+    if (role == 'Corporate') {
+      if (prefs.getStringList('PermessionCorporate') == null) {
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => SignInScreen()));
+      } else {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => CorpNavigationBar(
+              PermessionCorporate: prefs.getStringList('PermessionCorporate'),
+              role: role,
+            ),
+          ),
+        );
+      }
+    } else if (role == 'DeliveryEShop') {
+      if (prefs.getStringList('PermessionDeliveryEShop') == null) {
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => SignInScreen()));
+      } else {
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => Eshope_Menu()));
+      }
+    } else if (role == 'ZainOutdoorHeads') {
+      if (prefs.getStringList('PermessionZainOutdoorHeads') == null) {
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => SignInScreen()));
+      } else {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ZainOutdoorHeads_Dashboard(
+              PermessionZainOutdoorHeads: prefs.getStringList('PermessionZainOutdoorHeads'),
+              role: role,
+              outDoorUserName: prefs.getString('outDoorUserName'),
+            ),
+          ),
+        );
+      }
+    } else if (role == 'DealerAgent') {
+      if (prefs.getStringList('PermessionDealerAgent') == null) {
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => SignInScreen()));
+      } else {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => CustomBottomNavigationBar(
+              Permessions: prefs.getStringList('PermessionDealerAgent'),
+              role: role,
+              outDoorUserName: prefs.getString('outDoorUserName'),
+            ),
+          ),
+        );
+      }
+    } else if (role == 'Reseller') {
+      if (prefs.getStringList('PermessionReseller') == null) {
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => SignInScreen()));
+      } else {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => NewAccountDocumnetChecking(
+              prefs.getStringList('PermessionReseller'),
+              role,
+            ),
+          ),
+        );
+      }
+    } else {
+      // Default role (SubDealer, etc.)
+      if (prefs.getStringList('Permessions') == null) {
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => SignInScreen()));
+      } else {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => CustomBottomNavigationBar(
+              Permessions: prefs.getStringList('Permessions'),
+              role: role,
+              outDoorUserName: prefs.getString('outDoorUserName'),
+            ),
+          ),
+        );
+      }
+    }
+  } else {
+    // Not logged in
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => SignInScreen()),
+    );
+  }
+}
   /////////////////////////////////////////////////Web Part/////////////////////////////////////////////////////////
   void getWebVersion() async {
     String version;

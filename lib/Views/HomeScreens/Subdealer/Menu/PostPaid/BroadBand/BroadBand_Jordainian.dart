@@ -48,8 +48,11 @@ import 'package:sales_app/blocs/PostPaid/PostpaidGenerateContract/postpaidGenera
 import 'package:sales_app/blocs/PostPaid/PostpaidGenerateContract/postpaidGenerateContract_state.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dropdown_search/dropdown_search.dart';
+import 'package:camera/camera.dart';
+import 'package:sales_app/Views/HomeScreens/Subdealer/Menu/EKYC/GlobalVariables/global_variables.dart';
 
 import '../FTTH/contract_details.dart';
+import '../PostpaidIdentificationSelfRecording.dart';
 
 class BroadBandJordainian extends StatefulWidget {
   var role;
@@ -82,27 +85,27 @@ class BroadBandJordainian extends StatefulWidget {
 
   BroadBandJordainian(
       {this.role,
-      this.outDoorUserName,
-      this.Permessions,
-      this.msisdn,
-      this.nationalNumber,
-      this.passportNumber,
-      this.userName,
-      this.password,
-      this.marketType,
-      this.packageCode,
-      this.sendOtp,
-      this.showSimCard,
-      this.isParentEligible,
-      this.price,
+        this.outDoorUserName,
+        this.Permessions,
+        this.msisdn,
+        this.nationalNumber,
+        this.passportNumber,
+        this.userName,
+        this.password,
+        this.marketType,
+        this.packageCode,
+        this.sendOtp,
+        this.showSimCard,
+        this.isParentEligible,
+        this.price,
         this.isRental,
         this.device5GType,
         this.buildingCode,
         this.serialNumber,
         this.itemCode,
-      this.rentalMsisdn,
-      this.Packages_5G,
-      this.rentalPrice,
+        this.rentalMsisdn,
+        this.Packages_5G,
+        this.rentalPrice,
         this.simLockedEligible,
         this.simUnlockedEligible});
 
@@ -128,8 +131,8 @@ class BroadBandJordainian extends StatefulWidget {
       this.serialNumber,
       this.itemCode,
       this.rentalMsisdn,
-  this.Packages_5G,
-  this.rentalPrice,
+      this.Packages_5G,
+      this.rentalPrice,
       this.simLockedEligible,
       this.simUnlockedEligible);
 }
@@ -356,6 +359,7 @@ class _BroadBandJordainianState extends State<BroadBandJordainian> {
   bool imageContractRequired = false;
   String img64Contract;
   String lockedSIM = "N"; // N: Not Eligible, L: Locked, U: Unlocked
+  bool isDataFromEkyc = false; // ✅ Track if data came from eKYC ID OCR processing
 
   void initState() {
 
@@ -579,42 +583,42 @@ class _BroadBandJordainianState extends State<BroadBandJordainian> {
   }
 
   final msg =
-      BlocBuilder<PostpaidGenerateContractBloc, PostpaidGenerateContractState>(
-          builder: (context, state) {
-    if (state is PostpaidGenerateContractLoadingState) {
-      return Center(
-          child: Container(
-        padding: EdgeInsets.only(bottom: 10, top: 10),
-        child: CircularProgressIndicator(
-          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4f2565)),
-        ),
-      ));
-    } else {
-      return Container();
-    }
-  });
+  BlocBuilder<PostpaidGenerateContractBloc, PostpaidGenerateContractState>(
+      builder: (context, state) {
+        if (state is PostpaidGenerateContractLoadingState) {
+          return Center(
+              child: Container(
+                padding: EdgeInsets.only(bottom: 10, top: 10),
+                child: CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4f2565)),
+                ),
+              ));
+        } else {
+          return Container();
+        }
+      });
 
   final msgScan = BlocBuilder<ValidateKitCodeRqBloc, ValidateKitCodeRqState>(
       builder: (context, state) {
-    if (state is ValidateKitCodeRqScanLoadingState) {
-      return Center(
-          child: Container(
-        padding: EdgeInsets.only(bottom: 10),
-        child: CircularProgressIndicator(
-          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4f2565)),
-        ),
-      ));
-    } else {
-      return Container();
-    }
-  });
+        if (state is ValidateKitCodeRqScanLoadingState) {
+          return Center(
+              child: Container(
+                padding: EdgeInsets.only(bottom: 10),
+                child: CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4f2565)),
+                ),
+              ));
+        } else {
+          return Container();
+        }
+      });
 
   void calculateImageSize(String path) {
     Completer<Size> completer = Completer();
     Image image = Image.file(File(path));
     image.image.resolve(ImageConfiguration()).addListener(
       ImageStreamListener(
-        (ImageInfo image, bool synchronousCall) {
+            (ImageInfo image, bool synchronousCall) {
           var myImage = image.image;
           Size size = Size(myImage.width.toDouble(), myImage.height.toDouble());
           completer.complete(size);
@@ -965,15 +969,15 @@ class _BroadBandJordainianState extends State<BroadBandJordainian> {
                         new Text(
                           "Jordan_Nationality.open_camera".tr().toString(),
                           style:
-                              TextStyle(color: Color(0xff11120e), fontSize: 14),
+                          TextStyle(color: Color(0xff11120e), fontSize: 14),
                         ),
                       ],
                     ),
                   ),
-                 SizedBox(
+                  SizedBox(
                     height: 50,
                   ),
-                role=="MadaOutdoor"?Container():  GestureDetector(
+                  role=="MadaOutdoor"?Container():  GestureDetector(
                     onTap: () {
                       FocusScope.of(context).unfocus();
                       pickImageGalleryFront();
@@ -994,12 +998,12 @@ class _BroadBandJordainianState extends State<BroadBandJordainian> {
                         new Text(
                           "Jordan_Nationality.Choose_photos".tr().toString(),
                           style:
-                              TextStyle(color: Color(0xff11120e), fontSize: 14),
+                          TextStyle(color: Color(0xff11120e), fontSize: 14),
                         ),
                       ],
                     ),
                   ),
-                   SizedBox(
+                  SizedBox(
                     height: 50,
                   ),
                 ],
@@ -1061,12 +1065,12 @@ class _BroadBandJordainianState extends State<BroadBandJordainian> {
                         new Text(
                           "Jordan_Nationality.open_camera".tr().toString(),
                           style:
-                              TextStyle(color: Color(0xff11120e), fontSize: 14),
+                          TextStyle(color: Color(0xff11120e), fontSize: 14),
                         ),
                       ],
                     ),
                   ),
-                   SizedBox(
+                  SizedBox(
                     height: 50,
                   ),
                   role=="MadaOutdoor"?Container():  GestureDetector(
@@ -1090,7 +1094,7 @@ class _BroadBandJordainianState extends State<BroadBandJordainian> {
                         new Text(
                           "Jordan_Nationality.Choose_photos".tr().toString(),
                           style:
-                              TextStyle(color: Color(0xff11120e), fontSize: 14),
+                          TextStyle(color: Color(0xff11120e), fontSize: 14),
                         ),
                       ],
                     ),
@@ -1157,7 +1161,7 @@ class _BroadBandJordainianState extends State<BroadBandJordainian> {
                         new Text(
                           "Jordan_Nationality.open_camera".tr().toString(),
                           style:
-                              TextStyle(color: Color(0xff11120e), fontSize: 14),
+                          TextStyle(color: Color(0xff11120e), fontSize: 14),
                         ),
                       ],
                     ),
@@ -1186,12 +1190,12 @@ class _BroadBandJordainianState extends State<BroadBandJordainian> {
                         new Text(
                           "Jordan_Nationality.Choose_photos".tr().toString(),
                           style:
-                              TextStyle(color: Color(0xff11120e), fontSize: 14),
+                          TextStyle(color: Color(0xff11120e), fontSize: 14),
                         ),
                       ],
                     ),
                   ),
-                 SizedBox(
+                  SizedBox(
                     height: 50,
                   ),
                 ],
@@ -1210,22 +1214,22 @@ class _BroadBandJordainianState extends State<BroadBandJordainian> {
       child: (child));
 
   final msgTwo =
-      BlocBuilder<VerifyOTPSCheckMSISDNBloc, VerifyOTPSCheckMSISDNState>(
-          builder: (context, state) {
-    if (state is VerifyOTPSCheckMSISDNLoadingState) {
-      return Center(
-          child: Container(
-        padding: EdgeInsets.only(bottom: 0, top: 20),
-        child: Container(
-          child: CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4F2565)),
-          ),
-        ),
-      ));
-    } else {
-      return Container();
-    }
-  });
+  BlocBuilder<VerifyOTPSCheckMSISDNBloc, VerifyOTPSCheckMSISDNState>(
+      builder: (context, state) {
+        if (state is VerifyOTPSCheckMSISDNLoadingState) {
+          return Center(
+              child: Container(
+                padding: EdgeInsets.only(bottom: 0, top: 20),
+                child: Container(
+                  child: CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4F2565)),
+                  ),
+                ),
+              ));
+        } else {
+          return Container();
+        }
+      });
 
   showAlertDialogVerify(BuildContext context, arabicMessage, englishMessage) {
     Widget tryAgainButton = TextButton(
@@ -1334,7 +1338,7 @@ class _BroadBandJordainianState extends State<BroadBandJordainian> {
             salesLeadType: salesLeadType,
             salesLeadValue: salesLeadValue.text,
             backPassportImageBase64:null,
-           // note: notes.text,
+            // note: notes.text,
 
             note:this.Packages_5G==true?discountValue:commitmentDefultSelected,
 
@@ -1369,6 +1373,123 @@ class _BroadBandJordainianState extends State<BroadBandJordainian> {
         return alert;
       },
     );
+  }
+
+  /*****************************************************************************************************/
+  // ✅ Pre-submit validation - calls API to validate before proceeding to liveness
+  preSubmitValidation_API() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    Map test = {
+      "MarketType": this.marketType,
+      "IsJordanian": true, // Jordanian
+      "NationalNo": nationalNumber,
+      "PassportNo": null,
+      "PackageCode": this.packageCode,
+      "Msisdn": this.msisdn,
+      "isClaimed": claim
+    };
+
+    String body = json.encode(test);
+    var apiArea = urls.BASE_URL + '/Postpaid/preSubmitValidation';
+    final Uri url = Uri.parse(apiArea);
+    prefs.getString("accessToken");
+    final access = prefs.getString("accessToken");
+
+    final response = await http.post(
+      url,
+      headers: {
+        "content-type": "application/json",
+        "Authorization": prefs.getString("accessToken")
+      },
+      body: body,
+    );
+    int statusCode = response.statusCode;
+    var data = response.request;
+    print(statusCode);
+    print(data);
+    print(response);
+    print('body: [${response.body}]');
+
+    if (statusCode == 401) {
+      print('401  error ');
+    }
+    if (statusCode == 200) {
+      print("yes");
+      var result = json.decode(response.body);
+      print(result);
+      print('----------------Jordanian BroadBand PreSubmit---------------');
+      print(result["data"]);
+      if (result["data"] == null) {}
+      if (result["status"] == 0) {
+        print(result["data"]);
+        // ✅ Navigate to video recording screen instead of showing dialog
+        _navigateToVideoRecording();
+      } else {}
+
+      print('-------------------------------');
+      print('Sucses API');
+      print(urls.BASE_URL + '/Postpaid/preSubmitValidation');
+
+      return result;
+    } else {}
+  }
+  /*****************************************************************************************************/
+  
+  // ✅ Navigate to video recording screen for eKYC
+  void _navigateToVideoRecording() async {
+    try {
+      // Get available cameras
+      final cameras = await availableCameras();
+      
+      // Get eKYC session UID and token from SharedPreferences or globalVars
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      String sessionUid = globalVars.sessionUid ?? '';
+      String ekycToken = globalVars.ekycTokenID ?? '';
+      
+      print('📹 Navigating to video recording screen...');
+      print('Session UID: $sessionUid');
+      print('MSISDN: $msisdn');
+      
+      // ✅ Navigate to shared video recording screen
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => PostpaidIdentificationSelfRecording(
+            cameras: cameras,
+            sessionUid: sessionUid,
+            ekycToken: ekycToken,
+            onVideoRecorded: (videoPath, videoHash) {
+              // Video successfully recorded and uploaded
+              print('✅ Video recorded successfully!');
+              print('Video Path: $videoPath');
+              print('Video Hash: $videoHash');
+              
+              // Close video recording screen
+              Navigator.pop(context);
+              
+              // ✅ Show confirmation dialog
+              _showPriceConfirmationDialog();
+            },
+          ),
+        ),
+      );
+    } catch (e) {
+      print('❌ Error navigating to video recording: $e');
+      showToast(
+        "خطأ في فتح شاشة تسجيل الفيديو",
+        context: context,
+        animation: StyledToastAnimation.scale,
+        fullWidth: true,
+      );
+    }
+  }
+  
+  // ✅ Show price confirmation dialog after video recording
+  void _showPriceConfirmationDialog() {
+    showAlertDialogSaveData(
+        context,
+        ' هل انت متأكد من المتابعة؟  ',
+        'Are you sure you want to continue?');
   }
 
   /*.................................................new 24/10/2024..............................................................*/
@@ -1482,7 +1603,7 @@ class _BroadBandJordainianState extends State<BroadBandJordainian> {
             border: Border.all(
               //color: Color(0xFFB10000), red color
               color:
-                  emptyOption == true ? Color(0xFFB10000) : Color(0xFFD1D7E0),
+              emptyOption == true ? Color(0xFFB10000) : Color(0xFFD1D7E0),
             ),
           ),
           child: DropdownButtonHideUnderline(
@@ -1535,7 +1656,7 @@ class _BroadBandJordainianState extends State<BroadBandJordainian> {
                   return DropdownMenuItem<String>(
                     value: valueItem,
                     child: EasyLocalization.of(context).locale ==
-                            Locale("en", "US")
+                        Locale("en", "US")
                         ? Text(valueItem)
                         : Text(valueItem),
                   );
@@ -1580,8 +1701,8 @@ class _BroadBandJordainianState extends State<BroadBandJordainian> {
           child: TextField(
             controller: salesLeadValue,
             buildCounter: (BuildContext context,
-                    {int currentLength, int maxLength, bool isFocused}) =>
-                null,
+                {int currentLength, int maxLength, bool isFocused}) =>
+            null,
             keyboardType: TextInputType.text,
             /* inputFormatters: [
               FilteringTextInputFormatter.deny(
@@ -1591,19 +1712,19 @@ class _BroadBandJordainianState extends State<BroadBandJordainian> {
             decoration: InputDecoration(
               enabledBorder: emptysalesLeadValue == true
                   ? const OutlineInputBorder(
-                      // width: 0.0 produces a thin "hairline" border
-                      borderSide: const BorderSide(
-                          color: Color(0xFFB10000), width: 1.0),
-                    )
+                // width: 0.0 produces a thin "hairline" border
+                borderSide: const BorderSide(
+                    color: Color(0xFFB10000), width: 1.0),
+              )
                   : const OutlineInputBorder(
-                      // width: 0.0 produces a thin "hairline" border
-                      borderSide: const BorderSide(
-                          color: Color(0xFFD1D7E0), width: 1.0),
-                    ),
+                // width: 0.0 produces a thin "hairline" border
+                borderSide: const BorderSide(
+                    color: Color(0xFFD1D7E0), width: 1.0),
+              ),
               border: const OutlineInputBorder(),
               focusedBorder: OutlineInputBorder(
                 borderSide:
-                    const BorderSide(color: Color(0xFF4F2565), width: 1.0),
+                const BorderSide(color: Color(0xFF4F2565), width: 1.0),
               ),
               contentPadding: EdgeInsets.all(16),
               hintText: salesLeadType == 1
@@ -1881,7 +2002,7 @@ class _BroadBandJordainianState extends State<BroadBandJordainian> {
                     borderSide: BorderSide(color: Color(0xFFD1D7E0)),
                   ),
                   hintText:
-                      "Personal_Info_Edit.select_an_option".tr().toString(),
+                  "Personal_Info_Edit.select_an_option".tr().toString(),
                   hintStyle: TextStyle(
                     color: Color(0xFFA4B0C1),
                     fontSize: 14,
@@ -1896,7 +2017,7 @@ class _BroadBandJordainianState extends State<BroadBandJordainian> {
             )),
         emptyselectedReseller == true
             ? ReusableRequiredText(
-                text: "Postpaid.this_feild_is_required".tr().toString())
+            text: "Postpaid.this_feild_is_required".tr().toString())
             : Container(),
       ],
     );
@@ -2099,21 +2220,21 @@ class _BroadBandJordainianState extends State<BroadBandJordainian> {
             children: <TextSpan>[
               role == "ZainTelesales"
                   ? TextSpan(
-                      text: ' * ',
-                      style: TextStyle(
-                        color: Color(0xFFB10000),
-                        fontSize: 14,
-                        fontWeight: FontWeight.normal,
-                      ),
-                    )
+                text: ' * ',
+                style: TextStyle(
+                  color: Color(0xFFB10000),
+                  fontSize: 14,
+                  fontWeight: FontWeight.normal,
+                ),
+              )
                   : TextSpan(
-                      text: '',
-                      style: TextStyle(
-                        color: Color(0xFFB10000),
-                        fontSize: 14,
-                        fontWeight: FontWeight.normal,
-                      ),
-                    ),
+                text: '',
+                style: TextStyle(
+                  color: Color(0xFFB10000),
+                  fontSize: 14,
+                  fontWeight: FontWeight.normal,
+                ),
+              ),
             ],
           ),
         ),
@@ -2146,7 +2267,7 @@ class _BroadBandJordainianState extends State<BroadBandJordainian> {
                     borderSide: BorderSide(color: Color(0xFFD1D7E0)),
                   ),
                   hintText:
-                      "Personal_Info_Edit.select_an_option".tr().toString(),
+                  "Personal_Info_Edit.select_an_option".tr().toString(),
                   hintStyle: TextStyle(
                     color: Color(0xFFA4B0C1),
                     fontSize: 14,
@@ -2161,7 +2282,7 @@ class _BroadBandJordainianState extends State<BroadBandJordainian> {
             )),
         emptyselectedBEHALF == true
             ? ReusableRequiredText(
-                text: "Postpaid.this_feild_is_required".tr().toString())
+            text: "Postpaid.this_feild_is_required".tr().toString())
             : Container(),
       ],
     );
@@ -2217,52 +2338,52 @@ class _BroadBandJordainianState extends State<BroadBandJordainian> {
               child: Column(mainAxisSize: MainAxisSize.max, children: <Widget>[
                 Expanded(
                     child: ListView(
-                        // shrinkWrap: false,
+                      // shrinkWrap: false,
                         physics: const NeverScrollableScrollPhysics(),
                         children: [
-                      SizedBox(
-                        width: double.maxFinite,
-                        height: 50,
-                        child: ListTile(
-                          contentPadding: new EdgeInsets.fromLTRB(4, 0, 4, 0),
-                          title: Text(
-                            "CustomerService.enter_OTP".tr().toString(),
-                            style: TextStyle(
-                              color: Color(0xff11120e),
-                              fontSize: 16,
+                          SizedBox(
+                            width: double.maxFinite,
+                            height: 50,
+                            child: ListTile(
+                              contentPadding: new EdgeInsets.fromLTRB(4, 0, 4, 0),
+                              title: Text(
+                                "CustomerService.enter_OTP".tr().toString(),
+                                style: TextStyle(
+                                  color: Color(0xff11120e),
+                                  fontSize: 16,
+                                ),
+                              ),
                             ),
                           ),
-                        ),
-                      ),
-                      SizedBox(
-                        height: 50,
-                        child: ListTile(
-                          contentPadding: new EdgeInsets.fromLTRB(4, 0, 4, 4),
-                          title: TextField(
-                            controller: otp,
-                            keyboardType: TextInputType.phone,
-                            decoration: InputDecoration(
-                              enabledBorder: const OutlineInputBorder(
-                                // width: 0.0 produces a thin "hairline" border
-                                borderSide: const BorderSide(
-                                    color: Color(0xFFD1D7E0), width: 1.0),
-                              ),
-                              border: const OutlineInputBorder(),
-                              focusedBorder: OutlineInputBorder(
-                                borderSide: const BorderSide(
-                                    color: Color(0xFF4F2565), width: 1.0),
-                              ),
-                              contentPadding: EdgeInsets.all(16),
-                              hintText:
+                          SizedBox(
+                            height: 50,
+                            child: ListTile(
+                              contentPadding: new EdgeInsets.fromLTRB(4, 0, 4, 4),
+                              title: TextField(
+                                controller: otp,
+                                keyboardType: TextInputType.phone,
+                                decoration: InputDecoration(
+                                  enabledBorder: const OutlineInputBorder(
+                                    // width: 0.0 produces a thin "hairline" border
+                                    borderSide: const BorderSide(
+                                        color: Color(0xFFD1D7E0), width: 1.0),
+                                  ),
+                                  border: const OutlineInputBorder(),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderSide: const BorderSide(
+                                        color: Color(0xFF4F2565), width: 1.0),
+                                  ),
+                                  contentPadding: EdgeInsets.all(16),
+                                  hintText:
                                   "CustomerService.verify_hint".tr().toString(),
-                              hintStyle: TextStyle(
-                                  color: Color(0xFFA4B0C1), fontSize: 14),
+                                  hintStyle: TextStyle(
+                                      color: Color(0xFFA4B0C1), fontSize: 14),
+                                ),
+                              ),
                             ),
                           ),
-                        ),
-                      ),
-                      msgTwo
-                    ]))
+                          msgTwo
+                        ]))
               ]),
             ),
             actions: <Widget>[
@@ -2412,8 +2533,8 @@ class _BroadBandJordainianState extends State<BroadBandJordainian> {
           child: TextField(
             maxLength: 10,
             buildCounter: (BuildContext context,
-                    {int currentLength, int maxLength, bool isFocused}) =>
-                null,
+                {int currentLength, int maxLength, bool isFocused}) =>
+            null,
             controller: NationalNumber,
             enabled: false,
             keyboardType: TextInputType.phone,
@@ -2425,7 +2546,7 @@ class _BroadBandJordainianState extends State<BroadBandJordainian> {
                   borderSide: BorderSide(width: 1, color: Color(0xFFD1D7E0))),
               focusedBorder: OutlineInputBorder(
                 borderSide:
-                    const BorderSide(color: Color(0xFF4f2565), width: 1.0),
+                const BorderSide(color: Color(0xFF4f2565), width: 1.0),
               ),
               fillColor: Color(0xFFEBECF1),
               filled: true,
@@ -2458,8 +2579,8 @@ class _BroadBandJordainianState extends State<BroadBandJordainian> {
           child: TextField(
             maxLength: 10,
             buildCounter: (BuildContext context,
-                    {int currentLength, int maxLength, bool isFocused}) =>
-                null,
+                {int currentLength, int maxLength, bool isFocused}) =>
+            null,
             controller: MSISDN,
             enabled: false,
             keyboardType: TextInputType.phone,
@@ -2471,7 +2592,7 @@ class _BroadBandJordainianState extends State<BroadBandJordainian> {
                   borderSide: BorderSide(width: 1, color: Color(0xFFD1D7E0))),
               focusedBorder: OutlineInputBorder(
                 borderSide:
-                    const BorderSide(color: Color(0xFF4f2565), width: 1.0),
+                const BorderSide(color: Color(0xFF4f2565), width: 1.0),
               ),
               fillColor: Color(0xFFEBECF1),
               filled: true,
@@ -2515,28 +2636,28 @@ class _BroadBandJordainianState extends State<BroadBandJordainian> {
             controller: isParentEligibleShow,
             maxLength: 10,
             buildCounter: (BuildContext context,
-                    {int currentLength, int maxLength, bool isFocused}) =>
-                null,
+                {int currentLength, int maxLength, bool isFocused}) =>
+            null,
             onTap: () {},
             keyboardType: TextInputType.phone,
             style: TextStyle(color: Color(0xff11120e)),
             decoration: InputDecoration(
               enabledBorder: emptyParentEligibleShow == true ||
-                      errorParentEligibleShow == true
+                  errorParentEligibleShow == true
                   ? const OutlineInputBorder(
-                      // width: 0.0 produces a thin "hairline" border
-                      borderSide: const BorderSide(
-                          color: Color(0xFFB10000), width: 1.0),
-                    )
+                // width: 0.0 produces a thin "hairline" border
+                borderSide: const BorderSide(
+                    color: Color(0xFFB10000), width: 1.0),
+              )
                   : const OutlineInputBorder(
-                      // width: 0.0 produces a thin "hairline" border
-                      borderSide: const BorderSide(
-                          color: Color(0xFFD1D7E0), width: 1.0),
-                    ),
+                // width: 0.0 produces a thin "hairline" border
+                borderSide: const BorderSide(
+                    color: Color(0xFFD1D7E0), width: 1.0),
+              ),
               border: const OutlineInputBorder(),
               focusedBorder: OutlineInputBorder(
                 borderSide:
-                    const BorderSide(color: Color(0xFF4f2565), width: 1.0),
+                const BorderSide(color: Color(0xFF4f2565), width: 1.0),
               ),
               contentPadding: EdgeInsets.all(16),
               hintText: Packages_5G==true?"xxxxxxxxx":"Menu_Form.(079) 0000 000".tr().toString(),
@@ -2602,8 +2723,8 @@ class _BroadBandJordainianState extends State<BroadBandJordainian> {
               }
             },
             buildCounter: (BuildContext context,
-                    {int currentLength, int maxLength, bool isFocused}) =>
-                null,
+                {int currentLength, int maxLength, bool isFocused}) =>
+            null,
             keyboardType: TextInputType.phone,
             /*    inputFormatters: [
                                 FilteringTextInputFormatter.deny(RegExp('[a-z A-Z á-ú Á-Ú]')),
@@ -2611,21 +2732,21 @@ class _BroadBandJordainianState extends State<BroadBandJordainian> {
             style: TextStyle(color: Color(0xff11120e)),
             decoration: InputDecoration(
               enabledBorder:
-                  emptyReferenceNumber == true || errorReferenceNumber == true
-                      ? const OutlineInputBorder(
-                          // width: 0.0 produces a thin "hairline" border
-                          borderSide: const BorderSide(
-                              color: Color(0xFFB10000), width: 1.0),
-                        )
-                      : const OutlineInputBorder(
-                          // width: 0.0 produces a thin "hairline" border
-                          borderSide: const BorderSide(
-                              color: Color(0xFFD1D7E0), width: 1.0),
-                        ),
+              emptyReferenceNumber == true || errorReferenceNumber == true
+                  ? const OutlineInputBorder(
+                // width: 0.0 produces a thin "hairline" border
+                borderSide: const BorderSide(
+                    color: Color(0xFFB10000), width: 1.0),
+              )
+                  : const OutlineInputBorder(
+                // width: 0.0 produces a thin "hairline" border
+                borderSide: const BorderSide(
+                    color: Color(0xFFD1D7E0), width: 1.0),
+              ),
               border: const OutlineInputBorder(),
               focusedBorder: OutlineInputBorder(
                 borderSide:
-                    const BorderSide(color: Color(0xFF4F2565), width: 1.0),
+                const BorderSide(color: Color(0xFF4F2565), width: 1.0),
               ),
               contentPadding: EdgeInsets.all(16),
               hintText: "Postpaid.enter_reference_number".tr().toString(),
@@ -2698,7 +2819,7 @@ class _BroadBandJordainianState extends State<BroadBandJordainian> {
                       showDatePicker(
                         context: context,
                         firstDate: DateTime.now(),
-                       // firstDate: DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day - 60),
+                        // firstDate: DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day - 60),
                         initialDate: DateTime.now(),
                         lastDate:DateTime(DateTime.now().year+20,
                         ),
@@ -2758,187 +2879,187 @@ class _BroadBandJordainianState extends State<BroadBandJordainian> {
                 padding: EdgeInsets.only(left: 10, right: 5),
                 child: _loadIdFront == true
                     ? Column(
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                width: 170,
-                                height: 110,
-                                decoration: BoxDecoration(
-                                    color: Colors.black,
-                                    image: DecorationImage(
-                                      colorFilter: new ColorFilter.mode(
-                                          Colors.black.withOpacity(0.5),
-                                          BlendMode.dstATop),
-                                      image: FileImage(imageFileIDFront),
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 170,
+                          height: 110,
+                          decoration: BoxDecoration(
+                              color: Colors.black,
+                              image: DecorationImage(
+                                colorFilter: new ColorFilter.mode(
+                                    Colors.black.withOpacity(0.5),
+                                    BlendMode.dstATop),
+                                image: FileImage(imageFileIDFront),
+                                fit: BoxFit.cover,
+                              )),
+                          child: new Row(children: <Widget>[
+                            Center(
+                              child: new Column(
+                                children: <Widget>[
+                                  new Container(
+                                    padding: EdgeInsets.only(
+                                        top: 25, left: 70, right: 70),
+                                    child: Image(
+                                      image: AssetImage(
+                                          'assets/images/iconCheck.png'),
                                       fit: BoxFit.cover,
-                                    )),
-                                child: new Row(children: <Widget>[
-                                  Center(
-                                    child: new Column(
-                                      children: <Widget>[
-                                        new Container(
-                                          padding: EdgeInsets.only(
-                                              top: 25, left: 70, right: 70),
-                                          child: Image(
-                                            image: AssetImage(
-                                                'assets/images/iconCheck.png'),
-                                            fit: BoxFit.cover,
-                                            height: 24.0,
-                                          ),
-                                        ),
-                                        SizedBox(height: 10),
-                                        new Container(
-                                          child: GestureDetector(
-                                            onTap: () async {
-                                              FocusScope.of(context).unfocus();
-                                              showDialog(
-                                                  context: context,
-                                                  builder: (_) => Center(
-                                                          // Aligns the container to center
-                                                          child: Container(
-                                                        //color: Colors.deepOrange.withOpacity(0.5),
-                                                        child: PhotoView(
-                                                          enableRotation: true,
-                                                          backgroundDecoration:
-                                                              BoxDecoration(),
-                                                          imageProvider: FileImage(
-                                                              imageFileIDFront),
-                                                        ),
-                                                        // A simplified version of dialog.
-                                                        width: 300.0,
-                                                        height: 350.0,
-                                                      )));
-                                            },
-                                            child: Align(
-                                              alignment: Alignment.center,
-                                              child: Text(
-                                                "Jordan_Nationality.preview_photo"
-                                                    .tr()
-                                                    .toString(),
-                                                textAlign: TextAlign.center,
-                                                style: TextStyle(
-                                                  color: Color(0xFFffffff),
-                                                  fontSize: 16,
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ],
+                                      height: 24.0,
                                     ),
                                   ),
-                                ]),
-                              ),
-                            ],
-                          ),
-                          new Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: <Widget>[
-                              new Container(
-                                width: 170,
-                                padding: EdgeInsets.only(top: 15),
-                                child: GestureDetector(
-                                  onTap: () {
-                                    FocusScope.of(context).unfocus();
-                                    _showPickerFront(context);
-                                  },
-                                  child: Align(
-                                    alignment: Alignment.center,
-                                    child: Text(
-                                      "Jordan_Nationality.re_take_photo"
-                                          .tr()
-                                          .toString(),
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        color: Color(0xFF0070c9),
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w600,
+                                  SizedBox(height: 10),
+                                  new Container(
+                                    child: GestureDetector(
+                                      onTap: () async {
+                                        FocusScope.of(context).unfocus();
+                                        showDialog(
+                                            context: context,
+                                            builder: (_) => Center(
+                                              // Aligns the container to center
+                                                child: Container(
+                                                  //color: Colors.deepOrange.withOpacity(0.5),
+                                                  child: PhotoView(
+                                                    enableRotation: true,
+                                                    backgroundDecoration:
+                                                    BoxDecoration(),
+                                                    imageProvider: FileImage(
+                                                        imageFileIDFront),
+                                                  ),
+                                                  // A simplified version of dialog.
+                                                  width: 300.0,
+                                                  height: 350.0,
+                                                )));
+                                      },
+                                      child: Align(
+                                        alignment: Alignment.center,
+                                        child: Text(
+                                          "Jordan_Nationality.preview_photo"
+                                              .tr()
+                                              .toString(),
+                                          textAlign: TextAlign.center,
+                                          style: TextStyle(
+                                            color: Color(0xFFffffff),
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
                                       ),
                                     ),
                                   ),
-                                ),
+                                ],
                               ),
-                            ],
-                          ),
-                        ],
-                      )
-                    : Column(children: [
-                        buildDashedBorder(
-                          child: InkWell(
+                            ),
+                          ]),
+                        ),
+                      ],
+                    ),
+                    new Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: <Widget>[
+                        new Container(
+                          width: 170,
+                          padding: EdgeInsets.only(top: 15),
+                          child: GestureDetector(
                             onTap: () {
                               FocusScope.of(context).unfocus();
                               _showPickerFront(context);
                             },
-                            child: Container(
-                              width: 170,
-                              height: 110,
-                              child: GestureDetector(
-                                child: Align(
-                                    alignment: Alignment.center,
-                                    child: EasyLocalization.of(context)
-                                                .locale ==
-                                            Locale("en", "US")
-                                        ? Column(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.center,
-                                            children: [
-                                              Text(
-                                                "Jordan_Nationality.take_photo1"
-                                                    .tr()
-                                                    .toString(),
-                                                textAlign: TextAlign.center,
-                                                style: TextStyle(
-                                                  color: Color(0xFF0070c9),
-                                                  fontSize: 16,
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                              ),
-                                              Text(
-                                                "Jordan_Nationality.take_photo2"
-                                                    .tr()
-                                                    .toString(),
-                                                textAlign: TextAlign.center,
-                                                style: TextStyle(
-                                                  color: Color(0xFF0070c9),
-                                                  fontSize: 16,
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                              ),
-                                            ],
-                                          )
-                                        : Column(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.center,
-                                            children: [
-                                              Text(
-                                                "Jordan_Nationality.take_photo1"
-                                                    .tr()
-                                                    .toString(),
-                                                textAlign: TextAlign.center,
-                                                style: TextStyle(
-                                                  color: Color(0xFF0070c9),
-                                                  fontSize: 16,
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                              ),
-                                            ],
-                                          )),
+                            child: Align(
+                              alignment: Alignment.center,
+                              child: Text(
+                                "Jordan_Nationality.re_take_photo"
+                                    .tr()
+                                    .toString(),
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: Color(0xFF0070c9),
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ),
                           ),
                         ),
-                      ]),
+                      ],
+                    ),
+                  ],
+                )
+                    : Column(children: [
+                  buildDashedBorder(
+                    child: InkWell(
+                      onTap: () {
+                        FocusScope.of(context).unfocus();
+                        _showPickerFront(context);
+                      },
+                      child: Container(
+                        width: 170,
+                        height: 110,
+                        child: GestureDetector(
+                          child: Align(
+                              alignment: Alignment.center,
+                              child: EasyLocalization.of(context)
+                                  .locale ==
+                                  Locale("en", "US")
+                                  ? Column(
+                                mainAxisAlignment:
+                                MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    "Jordan_Nationality.take_photo1"
+                                        .tr()
+                                        .toString(),
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      color: Color(0xFF0070c9),
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  Text(
+                                    "Jordan_Nationality.take_photo2"
+                                        .tr()
+                                        .toString(),
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      color: Color(0xFF0070c9),
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              )
+                                  : Column(
+                                mainAxisAlignment:
+                                MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    "Jordan_Nationality.take_photo1"
+                                        .tr()
+                                        .toString(),
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      color: Color(0xFF0070c9),
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              )),
+                        ),
+                      ),
+                    ),
+                  ),
+                ]),
               ),
               //SizedBox(width: 10),
             ],
           ),
           imageIDFrontRequired == true
               ? ReusableRequiredText(
-                  text: "Jordan_Nationality.this_feild_is_required"
-                      .tr()
-                      .toString())
+              text: "Jordan_Nationality.this_feild_is_required"
+                  .tr()
+                  .toString())
               : Container(),
         ]),
       ),
@@ -2962,187 +3083,187 @@ class _BroadBandJordainianState extends State<BroadBandJordainian> {
                 padding: EdgeInsets.only(left: 10, right: 5),
                 child: _loadIdBack == true
                     ? Column(
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                width: 170,
-                                height: 110,
-                                decoration: BoxDecoration(
-                                    color: Colors.black,
-                                    image: DecorationImage(
-                                      colorFilter: new ColorFilter.mode(
-                                          Colors.black.withOpacity(0.5),
-                                          BlendMode.dstATop),
-                                      image: FileImage(imageFileIDBack),
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 170,
+                          height: 110,
+                          decoration: BoxDecoration(
+                              color: Colors.black,
+                              image: DecorationImage(
+                                colorFilter: new ColorFilter.mode(
+                                    Colors.black.withOpacity(0.5),
+                                    BlendMode.dstATop),
+                                image: FileImage(imageFileIDBack),
+                                fit: BoxFit.cover,
+                              )),
+                          child: new Row(children: <Widget>[
+                            Center(
+                              child: new Column(
+                                children: <Widget>[
+                                  new Container(
+                                    padding: EdgeInsets.only(
+                                        top: 25, left: 70, right: 70),
+                                    child: Image(
+                                      image: AssetImage(
+                                          'assets/images/iconCheck.png'),
                                       fit: BoxFit.cover,
-                                    )),
-                                child: new Row(children: <Widget>[
-                                  Center(
-                                    child: new Column(
-                                      children: <Widget>[
-                                        new Container(
-                                          padding: EdgeInsets.only(
-                                              top: 25, left: 70, right: 70),
-                                          child: Image(
-                                            image: AssetImage(
-                                                'assets/images/iconCheck.png'),
-                                            fit: BoxFit.cover,
-                                            height: 24.0,
-                                          ),
-                                        ),
-                                        SizedBox(height: 10),
-                                        new Container(
-                                          child: GestureDetector(
-                                            onTap: () async {
-                                              FocusScope.of(context).unfocus();
-                                              showDialog(
-                                                  context: context,
-                                                  builder: (_) => Center(
-                                                          // Aligns the container to center
-                                                          child: Container(
-                                                        //color: Colors.deepOrange.withOpacity(0.5),
-                                                        child: PhotoView(
-                                                          enableRotation: true,
-                                                          backgroundDecoration:
-                                                              BoxDecoration(),
-                                                          imageProvider: FileImage(
-                                                              imageFileIDBack),
-                                                        ),
-                                                        // A simplified version of dialog.
-                                                        width: 300.0,
-                                                        height: 350.0,
-                                                      )));
-                                            },
-                                            child: Align(
-                                              alignment: Alignment.center,
-                                              child: Text(
-                                                "Jordan_Nationality.preview_photo"
-                                                    .tr()
-                                                    .toString(),
-                                                textAlign: TextAlign.center,
-                                                style: TextStyle(
-                                                  color: Color(0xFFffffff),
-                                                  fontSize: 16,
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ],
+                                      height: 24.0,
                                     ),
                                   ),
-                                ]),
-                              ),
-                            ],
-                          ),
-                          new Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: <Widget>[
-                              new Container(
-                                width: 170,
-                                padding: EdgeInsets.only(top: 15),
-                                child: GestureDetector(
-                                  onTap: () {
-                                    FocusScope.of(context).unfocus();
-                                    _showPickerBack(context);
-                                  },
-                                  child: Align(
-                                    alignment: Alignment.center,
-                                    child: Text(
-                                      "Jordan_Nationality.re_take_photo"
-                                          .tr()
-                                          .toString(),
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        color: Color(0xFF0070c9),
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w600,
+                                  SizedBox(height: 10),
+                                  new Container(
+                                    child: GestureDetector(
+                                      onTap: () async {
+                                        FocusScope.of(context).unfocus();
+                                        showDialog(
+                                            context: context,
+                                            builder: (_) => Center(
+                                              // Aligns the container to center
+                                                child: Container(
+                                                  //color: Colors.deepOrange.withOpacity(0.5),
+                                                  child: PhotoView(
+                                                    enableRotation: true,
+                                                    backgroundDecoration:
+                                                    BoxDecoration(),
+                                                    imageProvider: FileImage(
+                                                        imageFileIDBack),
+                                                  ),
+                                                  // A simplified version of dialog.
+                                                  width: 300.0,
+                                                  height: 350.0,
+                                                )));
+                                      },
+                                      child: Align(
+                                        alignment: Alignment.center,
+                                        child: Text(
+                                          "Jordan_Nationality.preview_photo"
+                                              .tr()
+                                              .toString(),
+                                          textAlign: TextAlign.center,
+                                          style: TextStyle(
+                                            color: Color(0xFFffffff),
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
                                       ),
                                     ),
                                   ),
-                                ),
+                                ],
                               ),
-                            ],
-                          ),
-                        ],
-                      )
-                    : Column(children: [
-                        buildDashedBorder(
-                          child: InkWell(
+                            ),
+                          ]),
+                        ),
+                      ],
+                    ),
+                    new Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: <Widget>[
+                        new Container(
+                          width: 170,
+                          padding: EdgeInsets.only(top: 15),
+                          child: GestureDetector(
                             onTap: () {
                               FocusScope.of(context).unfocus();
                               _showPickerBack(context);
                             },
-                            child: Container(
-                              width: 170,
-                              height: 110,
-                              child: GestureDetector(
-                                child: Align(
-                                    alignment: Alignment.center,
-                                    child: EasyLocalization.of(context)
-                                                .locale ==
-                                            Locale("en", "US")
-                                        ? Column(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.center,
-                                            children: [
-                                              Text(
-                                                "Jordan_Nationality.take_photo1"
-                                                    .tr()
-                                                    .toString(),
-                                                textAlign: TextAlign.center,
-                                                style: TextStyle(
-                                                  color: Color(0xFF0070c9),
-                                                  fontSize: 16,
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                              ),
-                                              Text(
-                                                "Jordan_Nationality.take_photo2"
-                                                    .tr()
-                                                    .toString(),
-                                                textAlign: TextAlign.center,
-                                                style: TextStyle(
-                                                  color: Color(0xFF0070c9),
-                                                  fontSize: 16,
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                              ),
-                                            ],
-                                          )
-                                        : Column(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.center,
-                                            children: [
-                                              Text(
-                                                "Jordan_Nationality.take_photo1"
-                                                    .tr()
-                                                    .toString(),
-                                                textAlign: TextAlign.center,
-                                                style: TextStyle(
-                                                  color: Color(0xFF0070c9),
-                                                  fontSize: 16,
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                              ),
-                                            ],
-                                          )),
+                            child: Align(
+                              alignment: Alignment.center,
+                              child: Text(
+                                "Jordan_Nationality.re_take_photo"
+                                    .tr()
+                                    .toString(),
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: Color(0xFF0070c9),
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ),
                           ),
                         ),
-                      ]),
+                      ],
+                    ),
+                  ],
+                )
+                    : Column(children: [
+                  buildDashedBorder(
+                    child: InkWell(
+                      onTap: () {
+                        FocusScope.of(context).unfocus();
+                        _showPickerBack(context);
+                      },
+                      child: Container(
+                        width: 170,
+                        height: 110,
+                        child: GestureDetector(
+                          child: Align(
+                              alignment: Alignment.center,
+                              child: EasyLocalization.of(context)
+                                  .locale ==
+                                  Locale("en", "US")
+                                  ? Column(
+                                mainAxisAlignment:
+                                MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    "Jordan_Nationality.take_photo1"
+                                        .tr()
+                                        .toString(),
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      color: Color(0xFF0070c9),
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  Text(
+                                    "Jordan_Nationality.take_photo2"
+                                        .tr()
+                                        .toString(),
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      color: Color(0xFF0070c9),
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              )
+                                  : Column(
+                                mainAxisAlignment:
+                                MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    "Jordan_Nationality.take_photo1"
+                                        .tr()
+                                        .toString(),
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      color: Color(0xFF0070c9),
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              )),
+                        ),
+                      ),
+                    ),
+                  ),
+                ]),
               ),
               //SizedBox(width: 10),
             ],
           ),
           imageIDBackRequired == true
               ? ReusableRequiredText(
-                  text: "Jordan_Nationality.this_feild_is_required"
-                      .tr()
-                      .toString())
+              text: "Jordan_Nationality.this_feild_is_required"
+                  .tr()
+                  .toString())
               : Container(),
         ]),
       ),
@@ -3167,187 +3288,187 @@ class _BroadBandJordainianState extends State<BroadBandJordainian> {
                 padding: EdgeInsets.only(left: 10, right: 5),
                 child: _loadSerialDevice == true
                     ? Column(
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                width: 180,
-                                height: 235,
-                                decoration: BoxDecoration(
-                                    color: Colors.black,
-                                    image: DecorationImage(
-                                      colorFilter: new ColorFilter.mode(
-                                          Colors.black.withOpacity(0.5),
-                                          BlendMode.dstATop),
-                                      image: FileImage(imageFileSerialDevice),
-                                      fit: BoxFit.cover,
-                                    )),
-                                child: new Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 180,
+                          height: 235,
+                          decoration: BoxDecoration(
+                              color: Colors.black,
+                              image: DecorationImage(
+                                colorFilter: new ColorFilter.mode(
+                                    Colors.black.withOpacity(0.5),
+                                    BlendMode.dstATop),
+                                image: FileImage(imageFileSerialDevice),
+                                fit: BoxFit.cover,
+                              )),
+                          child: new Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: <Widget>[
+                                Center(
+                                  child: new Column(
+                                    mainAxisAlignment:
+                                    MainAxisAlignment.center,
                                     children: <Widget>[
-                                      Center(
-                                        child: new Column(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          children: <Widget>[
-                                            new Container(
-                                              child: Image(
-                                                image: AssetImage(
-                                                    'assets/images/iconCheck.png'),
-                                                fit: BoxFit.cover,
-                                                height: 24.0,
-                                              ),
-                                            ),
-                                            SizedBox(height: 10),
-                                            new Container(
-                                              child: GestureDetector(
-                                                onTap: () async {
-                                                  FocusScope.of(context)
-                                                      .unfocus();
-                                                  showDialog(
-                                                      context: context,
-                                                      builder: (_) => Center(
-                                                              // Aligns the container to center
-                                                              child: Container(
-                                                            child: PhotoView(
-                                                              enableRotation:
-                                                                  true,
-                                                              backgroundDecoration:
-                                                                  BoxDecoration(
-                                                                      color: Colors
-                                                                          .transparent),
-                                                              imageProvider:
-                                                                  FileImage(
-                                                                      imageFileSerialDevice),
-                                                            ),
-                                                            // A simplified version of dialog.
-                                                            width: 310.0,
-                                                            height: 500.0,
-                                                          )));
-                                                },
-                                                child: Align(
-                                                  alignment: Alignment.center,
-                                                  child: Text(
-                                                    "Jordan_Nationality.preview_photo"
-                                                        .tr()
-                                                        .toString(),
-                                                    textAlign: TextAlign.center,
-                                                    style: TextStyle(
-                                                      color: Color(0xFFffffff),
-                                                      fontSize: 16,
-                                                      fontWeight:
-                                                          FontWeight.w600,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                          ],
+                                      new Container(
+                                        child: Image(
+                                          image: AssetImage(
+                                              'assets/images/iconCheck.png'),
+                                          fit: BoxFit.cover,
+                                          height: 24.0,
                                         ),
                                       ),
-                                    ]),
-                              ),
-                            ],
-                          ),
-                          new Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: <Widget>[
-                              new Container(
-                                width: 170,
-                                padding: EdgeInsets.only(top: 15),
-                                child: GestureDetector(
-                                  onTap: () {
-                                    FocusScope.of(context).unfocus();
-                                    _showPickerSerialDevice(context);
-                                  },
-                                  child: Align(
-                                    alignment: Alignment.center,
-                                    child: Text(
-                                      "Jordan_Nationality.re_take_photo"
-                                          .tr()
-                                          .toString(),
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        color: Color(0xFF0070c9),
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      )
-                    : buildDashedBorder(
-                        child: InkWell(
-                          onTap: () {
-                            FocusScope.of(context).unfocus();
-                            _showPickerSerialDevice(context);
-                          },
-                          child: Container(
-                            width: 180,
-                            height: 235,
-                            child: GestureDetector(
-                              child: Align(
-                                alignment: Alignment.center,
-                                child: Align(
-                                  alignment: Alignment.center,
-                                  child: EasyLocalization.of(context).locale ==
-                                          Locale("en", "US")
-                                      ? Column(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          children: [
-                                            Text(
-                                              "Jordan_Nationality.take_photo1"
+                                      SizedBox(height: 10),
+                                      new Container(
+                                        child: GestureDetector(
+                                          onTap: () async {
+                                            FocusScope.of(context)
+                                                .unfocus();
+                                            showDialog(
+                                                context: context,
+                                                builder: (_) => Center(
+                                                  // Aligns the container to center
+                                                    child: Container(
+                                                      child: PhotoView(
+                                                        enableRotation:
+                                                        true,
+                                                        backgroundDecoration:
+                                                        BoxDecoration(
+                                                            color: Colors
+                                                                .transparent),
+                                                        imageProvider:
+                                                        FileImage(
+                                                            imageFileSerialDevice),
+                                                      ),
+                                                      // A simplified version of dialog.
+                                                      width: 310.0,
+                                                      height: 500.0,
+                                                    )));
+                                          },
+                                          child: Align(
+                                            alignment: Alignment.center,
+                                            child: Text(
+                                              "Jordan_Nationality.preview_photo"
                                                   .tr()
                                                   .toString(),
                                               textAlign: TextAlign.center,
                                               style: TextStyle(
-                                                color: Color(0xFF0070c9),
+                                                color: Color(0xFFffffff),
                                                 fontSize: 16,
-                                                fontWeight: FontWeight.w600,
+                                                fontWeight:
+                                                FontWeight.w600,
                                               ),
                                             ),
-                                            Text(
-                                              "Jordan_Nationality.take_photo2"
-                                                  .tr()
-                                                  .toString(),
-                                              textAlign: TextAlign.center,
-                                              style: TextStyle(
-                                                color: Color(0xFF0070c9),
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            )
-                                          ],
-                                        )
-                                      : Text(
-                                          "Jordan_Nationality.take_photo1"
-                                              .tr()
-                                              .toString(),
-                                          textAlign: TextAlign.center,
-                                          style: TextStyle(
-                                            color: Color(0xFF0070c9),
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.w600,
                                           ),
                                         ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ]),
+                        ),
+                      ],
+                    ),
+                    new Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: <Widget>[
+                        new Container(
+                          width: 170,
+                          padding: EdgeInsets.only(top: 15),
+                          child: GestureDetector(
+                            onTap: () {
+                              FocusScope.of(context).unfocus();
+                              _showPickerSerialDevice(context);
+                            },
+                            child: Align(
+                              alignment: Alignment.center,
+                              child: Text(
+                                "Jordan_Nationality.re_take_photo"
+                                    .tr()
+                                    .toString(),
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: Color(0xFF0070c9),
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
                             ),
                           ),
                         ),
+                      ],
+                    ),
+                  ],
+                )
+                    : buildDashedBorder(
+                  child: InkWell(
+                    onTap: () {
+                      FocusScope.of(context).unfocus();
+                      _showPickerSerialDevice(context);
+                    },
+                    child: Container(
+                      width: 180,
+                      height: 235,
+                      child: GestureDetector(
+                        child: Align(
+                          alignment: Alignment.center,
+                          child: Align(
+                            alignment: Alignment.center,
+                            child: EasyLocalization.of(context).locale ==
+                                Locale("en", "US")
+                                ? Column(
+                              mainAxisAlignment:
+                              MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  "Jordan_Nationality.take_photo1"
+                                      .tr()
+                                      .toString(),
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: Color(0xFF0070c9),
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                Text(
+                                  "Jordan_Nationality.take_photo2"
+                                      .tr()
+                                      .toString(),
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: Color(0xFF0070c9),
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                )
+                              ],
+                            )
+                                : Text(
+                              "Jordan_Nationality.take_photo1"
+                                  .tr()
+                                  .toString(),
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Color(0xFF0070c9),
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
                       ),
+                    ),
+                  ),
+                ),
               )
               //SizedBox(width: 10),
             ],
           ),
           imageSerialDeviceRequired == true
               ? ReusableRequiredText(
-                  text: "Postpaid.this_feild_is_required".tr().toString())
+              text: "Postpaid.this_feild_is_required".tr().toString())
               : Container(),
         ]),
       ),
@@ -3378,8 +3499,8 @@ class _BroadBandJordainianState extends State<BroadBandJordainian> {
             controller: SerialNumber,
             maxLength: 20,
             buildCounter: (BuildContext context,
-                    {int currentLength, int maxLength, bool isFocused}) =>
-                null,
+                {int currentLength, int maxLength, bool isFocused}) =>
+            null,
             onTap: () {},
             keyboardType: TextInputType.phone,
 
@@ -3463,27 +3584,27 @@ class _BroadBandJordainianState extends State<BroadBandJordainian> {
             controller: simCard,
             maxLength: 20,
             buildCounter: (BuildContext context,
-                    {int currentLength, int maxLength, bool isFocused}) =>
-                null,
+                {int currentLength, int maxLength, bool isFocused}) =>
+            null,
             onTap: () {},
             keyboardType: TextInputType.phone,
             style: TextStyle(color: Color(0xff11120e)),
             decoration: InputDecoration(
               enabledBorder: emptySimCard == true || errorSimCard == true
                   ? const OutlineInputBorder(
-                      // width: 0.0 produces a thin "hairline" border
-                      borderSide: const BorderSide(
-                          color: Color(0xFFB10000), width: 1.0),
-                    )
+                // width: 0.0 produces a thin "hairline" border
+                borderSide: const BorderSide(
+                    color: Color(0xFFB10000), width: 1.0),
+              )
                   : const OutlineInputBorder(
-                      // width: 0.0 produces a thin "hairline" border
-                      borderSide: const BorderSide(
-                          color: Color(0xFFD1D7E0), width: 1.0),
-                    ),
+                // width: 0.0 produces a thin "hairline" border
+                borderSide: const BorderSide(
+                    color: Color(0xFFD1D7E0), width: 1.0),
+              ),
               border: const OutlineInputBorder(),
               focusedBorder: OutlineInputBorder(
                 borderSide:
-                    const BorderSide(color: Color(0xFF4f2565), width: 1.0),
+                const BorderSide(color: Color(0xFF4f2565), width: 1.0),
               ),
               contentPadding: EdgeInsets.all(16),
               suffixIcon: IconButton(
@@ -3557,7 +3678,7 @@ class _BroadBandJordainianState extends State<BroadBandJordainian> {
 
   _ScanSimCard() async {
     await FlutterBarcodeScanner.scanBarcode(
-            "#ff6666", "Cancel", true, ScanMode.BARCODE)
+        "#ff6666", "Cancel", true, ScanMode.BARCODE)
         .then((value) => setState(() => _dataKitCode = value));
     print("haya");
     print(_dataKitCode);
@@ -3570,7 +3691,7 @@ class _BroadBandJordainianState extends State<BroadBandJordainian> {
 
   _ScanSerialDevice() async {
     await FlutterBarcodeScanner.scanBarcode(
-            "#ff6666", "Cancel", true, ScanMode.BARCODE)
+        "#ff6666", "Cancel", true, ScanMode.BARCODE)
         .then((value) => setState(() => _serialCode = value));
     print("haya");
     print(_serialCode);
@@ -4285,7 +4406,7 @@ class _BroadBandJordainianState extends State<BroadBandJordainian> {
             });
             /*...................................For Contract File...................................*/
             var dir = await getApplicationDocumentsDirectory();
-             fileContract = new File("${dir.path}/data.pdf");
+            fileContract = new File("${dir.path}/data.pdf");
             // fileContract.writeAsBytesSync(state.filePath['result'].bodyBytes, flush: true);
             Uint8List decodedbytes = base64.decode(state.filePath);
             Uint8List decodedbytes1 = base64Decode(state.filePath);
@@ -4316,7 +4437,7 @@ class _BroadBandJordainianState extends State<BroadBandJordainian> {
                       birthdate: null,
                       referenceNumber: referenceNumber.text,
                       referenceNumber2: null,
-                     // isMigrate: this.Packages_5G==true? isParentEligible:false,
+                      // isMigrate: this.Packages_5G==true? isParentEligible:false,
                       isMigrate: this.Packages_5G==true && isParentEligibleShow.text != "" && isParentEligible==true? true:false,
 
                       mbbMsisdn:this.Packages_5G==true? isParentEligibleShow.text:null,
@@ -4341,7 +4462,7 @@ class _BroadBandJordainianState extends State<BroadBandJordainian> {
                       salesLeadType: salesLeadType,
                       salesLeadValue: salesLeadValue.text,
                       backPassportImageBase64:null,
-                     // note:notes.text,
+                      // note:notes.text,
                       note:this.Packages_5G==true?discountValue:commitmentDefultSelected,
 
 
@@ -4402,7 +4523,7 @@ class _BroadBandJordainianState extends State<BroadBandJordainian> {
                       birthdate: null,
                       referenceNumber: referenceNumber.text,
                       referenceNumber2: null,
-                     // isMigrate: this.Packages_5G==true? isParentEligible:false,
+                      // isMigrate: this.Packages_5G==true? isParentEligible:false,
                       isMigrate: this.Packages_5G==true && isParentEligibleShow.text != "" && isParentEligible==true? true:false,
 
                       mbbMsisdn:this.Packages_5G==true? isParentEligibleShow.text:null,
@@ -4468,7 +4589,7 @@ class _BroadBandJordainianState extends State<BroadBandJordainian> {
               ),
               backgroundColor: Color(0xFFEBECF1),
               body:
-                  ListView(padding: EdgeInsets.only(top: 8), children: <Widget>[
+              ListView(padding: EdgeInsets.only(top: 8), children: <Widget>[
                 Container(
                     color: Color(0xFFEBECF1),
                     padding: EdgeInsets.only(
@@ -4499,9 +4620,9 @@ class _BroadBandJordainianState extends State<BroadBandJordainian> {
                             buildMSISDNNumber(),
                             emptyMSISDN == true
                                 ? ReusableRequiredText(
-                                    text: "Postpaid.this_feild_is_required"
-                                        .tr()
-                                        .toString())
+                                text: "Postpaid.this_feild_is_required"
+                                    .tr()
+                                    .toString())
                                 : Container(),
                             SizedBox(height: 10),
                             isParentEligible == true
@@ -4509,16 +4630,16 @@ class _BroadBandJordainianState extends State<BroadBandJordainian> {
                                 : Container(),
                             emptyParentEligibleShow == true
                                 ? ReusableRequiredText(
-                                    text: "Postpaid.this_feild_is_required"
-                                        .tr()
-                                        .toString())
+                                text: "Postpaid.this_feild_is_required"
+                                    .tr()
+                                    .toString())
                                 : Container(),
                             errorParentEligibleShow == true
                                 ? ReusableRequiredText(
-                                    text: EasyLocalization.of(context).locale ==
-                                            Locale("en", "US")
-                                        ? "Your MSISDN should be 10 digit and valid"
-                                        : "رقم الهاتف يجب أن يتكون من 10 خانات وصالح ")
+                                text: EasyLocalization.of(context).locale ==
+                                    Locale("en", "US")
+                                    ? "Your MSISDN should be 10 digit and valid"
+                                    : "رقم الهاتف يجب أن يتكون من 10 خانات وصالح ")
                                 : Container(),
                             isParentEligible == true
                                 ? SizedBox(height: 10)
@@ -4540,48 +4661,48 @@ class _BroadBandJordainianState extends State<BroadBandJordainian> {
                       buildReferenceNumber(),
                       emptyReferenceNumber == true
                           ? ReusableRequiredText(
-                              text: "Jordan_Nationality.this_feild_is_required"
-                                  .tr()
-                                  .toString())
+                          text: "Jordan_Nationality.this_feild_is_required"
+                              .tr()
+                              .toString())
                           : Container(),
                       errorReferenceNumber == true
                           ? ReusableRequiredText(
-                              text: EasyLocalization.of(context).locale ==
-                                      Locale("en", "US")
-                                  ? "Your MSISDN should be 10 digit and valid"
-                                  : "رقم الهاتف يجب أن يتكون من 10 خانات وصالح ")
+                          text: EasyLocalization.of(context).locale ==
+                              Locale("en", "US")
+                              ? "Your MSISDN should be 10 digit and valid"
+                              : "رقم الهاتف يجب أن يتكون من 10 خانات وصالح ")
                           : Container(),
                       successFlag == true && clearSucssesFlag == 1
                           ? Container(
-                              padding: EdgeInsets.only(top: 5),
-                              alignment: EasyLocalization.of(context).locale ==
-                                      Locale("en", "US")
-                                  ? Alignment.bottomLeft
-                                  : Alignment.bottomRight,
-                              child: RichText(
-                                text: TextSpan(
-                                  children: [
-                                    WidgetSpan(
-                                      child: new Icon(
-                                        Icons.assignment_turned_in,
-                                        size: 14,
-                                        color: Color(0xFF4BB543),
-                                      ),
-                                    ),
-                                    TextSpan(
-                                      text:
-                                          "Jordan_Nationality.Verify_Number_Successfully"
-                                              .tr()
-                                              .toString(),
-                                      style: TextStyle(
-                                        color: Color(0xFF4BB543),
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.normal,
-                                      ),
-                                    ),
-                                  ],
+                          padding: EdgeInsets.only(top: 5),
+                          alignment: EasyLocalization.of(context).locale ==
+                              Locale("en", "US")
+                              ? Alignment.bottomLeft
+                              : Alignment.bottomRight,
+                          child: RichText(
+                            text: TextSpan(
+                              children: [
+                                WidgetSpan(
+                                  child: new Icon(
+                                    Icons.assignment_turned_in,
+                                    size: 14,
+                                    color: Color(0xFF4BB543),
+                                  ),
                                 ),
-                              ))
+                                TextSpan(
+                                  text:
+                                  "Jordan_Nationality.Verify_Number_Successfully"
+                                      .tr()
+                                      .toString(),
+                                  style: TextStyle(
+                                    color: Color(0xFF4BB543),
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.normal,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ))
                           : Container(),
                       SizedBox(
                         height: 10,
@@ -4589,8 +4710,8 @@ class _BroadBandJordainianState extends State<BroadBandJordainian> {
                       /*.............................Document Expiry Date 12/6/2024.......................*/
                       buildDocumentExpiryDate(),
                       /*..................................................................................*/
-                    //  SizedBox(height: 10,),
-                    //  this.Packages_5G==true?  buildCommitmentlist():Container(),
+                      //  SizedBox(height: 10,),
+                      //  this.Packages_5G==true?  buildCommitmentlist():Container(),
                       SizedBox(
                         height: 10,
                       ),
@@ -4598,40 +4719,40 @@ class _BroadBandJordainianState extends State<BroadBandJordainian> {
                       ////////////////New 18/4/2023////////////////////////////////////////
                       switchValidateSalesLead == true && role == "ZainTelesales"
                           ? Container(
-                              color: Colors.white,
-                              padding: EdgeInsets.only(
-                                  left: 5, right: 5, top: 12, bottom: 5),
-                              child: buildSalesLeadOptions(),
-                            )
+                        color: Colors.white,
+                        padding: EdgeInsets.only(
+                            left: 5, right: 5, top: 12, bottom: 5),
+                        child: buildSalesLeadOptions(),
+                      )
                           : Container(),
                       (optionValue != null || optionValue == '') &&
-                              switchValidateSalesLead == true &&
-                              role == "ZainTelesales"
+                          switchValidateSalesLead == true &&
+                          role == "ZainTelesales"
                           ? Container(
-                              color: Colors.white,
-                              padding: EdgeInsets.only(
-                                  left: 5, right: 5, top: 5, bottom: 8),
-                              child: buildLCM_SalesLeadTicket())
+                          color: Colors.white,
+                          padding: EdgeInsets.only(
+                              left: 5, right: 5, top: 5, bottom: 8),
+                          child: buildLCM_SalesLeadTicket())
                           : Container(),
                       ////////////////New 22/3/2022////////////////////////////////////////
                       Permessions.contains('05.02.01.04') == true &&
-                              on_BEHALF == true
+                          on_BEHALF == true
                           ? Container(
-                              color: Colors.white,
-                              padding: EdgeInsets.only(
-                                  left: 0, right: 0, top: 12, bottom: 10),
-                              child: buildSelect_BEHALF(),
-                            )
+                        color: Colors.white,
+                        padding: EdgeInsets.only(
+                            left: 0, right: 0, top: 12, bottom: 10),
+                        child: buildSelect_BEHALF(),
+                      )
                           : Container(),
                       ////////////////New 17/4/2022////////////////////////////////////////
                       Permessions.contains('05.02.01.04') == true &&
-                              reseller == true
+                          reseller == true
                           ? Container(
-                              color: Colors.white,
-                              padding: EdgeInsets.only(
-                                  left: 0, right: 0, top: 12, bottom: 10),
-                              child: buildSelect_Reseller(),
-                            )
+                        color: Colors.white,
+                        padding: EdgeInsets.only(
+                            left: 0, right: 0, top: 12, bottom: 10),
+                        child: buildSelect_Reseller(),
+                      )
                           : Container(),
 
                       this.Packages_5G==true?  Container(
@@ -4641,39 +4762,39 @@ class _BroadBandJordainianState extends State<BroadBandJordainian> {
                       ////////////////New 18/4/2023 Switch////////////////////////////////////////
 
                       Permessions.contains("05.02.02.04") == true &&
-                              role == "ZainTelesales"
+                          role == "ZainTelesales"
                           ? Container(
-                              color: Colors.white,
-                              padding:
-                                  EdgeInsets.only(left: 5, right: 5, bottom: 8),
-                              child: buildValidateSalesLeadBy())
+                          color: Colors.white,
+                          padding:
+                          EdgeInsets.only(left: 5, right: 5, bottom: 8),
+                          child: buildValidateSalesLeadBy())
                           : Container(),
 
                       //////////////// end New////////////////////////////////////////
                       ////////////////New 22/3/2022////////////////////////////////////////
                       Permessions.contains('05.02.01.04') == true
                           ? Container(
-                              color: Colors.white,
-                              padding: EdgeInsets.only(
-                                  left: 5, right: 5, bottom: 8, top: 10),
-                              child: buildON_BEHALF())
+                          color: Colors.white,
+                          padding: EdgeInsets.only(
+                              left: 5, right: 5, bottom: 8, top: 10),
+                          child: buildON_BEHALF())
                           : Container(),
                       ////////////////////////////end new////////////////////////////////////
                       ////////////////New 17/4/2022////////////////////////////////////////
                       role=="ZainTelesales"&& Permessions.contains('05.02.01.05') == true
                           ? Container(
-                              color: Colors.white,
-                              padding: EdgeInsets.only(
-                                  left: 5, right: 5, bottom: 8, top: 10),
-                              child: buildON_Reseller())
+                          color: Colors.white,
+                          padding: EdgeInsets.only(
+                              left: 5, right: 5, bottom: 8, top: 10),
+                          child: buildON_Reseller())
                           : Container(),
 
                       role=="ZainTelesales"&& Permessions.contains('05.02.01.06') == true
                           ? Container(
-                              color: Colors.white,
-                              padding: EdgeInsets.only(
-                                  left: 5, right: 5, bottom: 8, top: 10),
-                              child: buildON_CLAIM())
+                          color: Colors.white,
+                          padding: EdgeInsets.only(
+                              left: 5, right: 5, bottom: 8, top: 10),
+                          child: buildON_CLAIM())
                           : Container(),
                       ////////////////////////////end new////////////////////////////////////
                     ])),
@@ -4697,11 +4818,11 @@ class _BroadBandJordainianState extends State<BroadBandJordainian> {
                     ),
                     trailing: _loadIdFront == true
                         ? Container(
-                            child: IconButton(
-                                icon: Icon(Icons.delete),
-                                color: Color(0xff0070c9),
-                                onPressed: () => {clearImageIDFront()}),
-                          )
+                      child: IconButton(
+                          icon: Icon(Icons.delete),
+                          color: Color(0xff0070c9),
+                          onPressed: () => {clearImageIDFront()}),
+                    )
                         : null,
                   ),
                 ),
@@ -4725,11 +4846,11 @@ class _BroadBandJordainianState extends State<BroadBandJordainian> {
                     ),
                     trailing: _loadIdBack == true
                         ? Container(
-                            child: IconButton(
-                                icon: Icon(Icons.delete),
-                                color: Color(0xff0070c9),
-                                onPressed: () => {clearImageIDBack()}),
-                          )
+                      child: IconButton(
+                          icon: Icon(Icons.delete),
+                          color: Color(0xff0070c9),
+                          onPressed: () => {clearImageIDBack()}),
+                    )
                         : null,
                   ),
                 ),
@@ -4740,38 +4861,38 @@ class _BroadBandJordainianState extends State<BroadBandJordainian> {
 
 
 
-                    Permessions.contains('05.02.01.09') == true
-                        ? Container(
-                      height: 60,
-                      padding: EdgeInsets.only(top: 8),
-                      child: ListTile(
-                        leading: Container(
-                          width: 280,
-                          child: Text(
-                            "Handset Contract",
-                            style: TextStyle(
-                              color: Color(0xFF11120e),
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
+                Permessions.contains('05.02.01.09') == true
+                    ? Container(
+                  height: 60,
+                  padding: EdgeInsets.only(top: 8),
+                  child: ListTile(
+                    leading: Container(
+                      width: 280,
+                      child: Text(
+                        "Handset Contract",
+                        style: TextStyle(
+                          color: Color(0xFF11120e),
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
                         ),
-                        trailing: _loadContract == true
-                            ? Container(
-                          child: IconButton(
-                              icon: Icon(Icons.delete),
-                              color: Color(0xff0070c9),
-                              onPressed: () => {clearImageContract()}),
-                        )
-                            : null,
                       ),
-                    )
-                        : Container(),
-                    Permessions.contains('05.02.01.09')
+                    ),
+                    trailing: _loadContract == true
                         ? Container(
-                      child: buildImageContract(),
+                      child: IconButton(
+                          icon: Icon(Icons.delete),
+                          color: Color(0xff0070c9),
+                          onPressed: () => {clearImageContract()}),
                     )
-                        : Container(),
+                        : null,
+                  ),
+                )
+                    : Container(),
+                Permessions.contains('05.02.01.09')
+                    ? Container(
+                  child: buildImageContract(),
+                )
+                    : Container(),
                 /*Column(
       ///hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
       children: [
@@ -4780,7 +4901,7 @@ class _BroadBandJordainianState extends State<BroadBandJordainian> {
       ],
       ),*/
                 //bar code reader
-                    Container(
+                Container(
                   child: Column(
                     children: [
                       Container(
@@ -4889,7 +5010,7 @@ class _BroadBandJordainianState extends State<BroadBandJordainian> {
                     ],
                   ),
                 ),
-                    Container(
+                Container(
                   color: Colors.white,
                   padding: EdgeInsets.only(left: 15, right: 15, top: 10),
                   child: Column(
@@ -4902,16 +5023,16 @@ class _BroadBandJordainianState extends State<BroadBandJordainian> {
                             _SIMCARD(),
                             emptySimCard == true
                                 ? ReusableRequiredText(
-                                    text: "Menu_Form.msisdn_required"
-                                        .tr()
-                                        .toString())
+                                text: "Menu_Form.msisdn_required"
+                                    .tr()
+                                    .toString())
                                 : Container(),
                             errorSimCard == true
                                 ? ReusableRequiredText(
-                                    text: EasyLocalization.of(context).locale ==
-                                            Locale("en", "US")
-                                        ? "Your ICCID shoud be 20 digit"
-                                        : "رقم ICCID يجب أن يتكون من 20 خانات")
+                                text: EasyLocalization.of(context).locale ==
+                                    Locale("en", "US")
+                                    ? "Your ICCID shoud be 20 digit"
+                                    : "رقم ICCID يجب أن يتكون من 20 خانات")
                                 : Container(),
                           ],
                         ),
@@ -4921,173 +5042,173 @@ class _BroadBandJordainianState extends State<BroadBandJordainian> {
                   ),
                 ),
 
-                    (Permessions.contains('05.02.01.01') == true)&& (this.device5GType=="Outdoor" )?
-                    Container(): Container(
-                      height: 60,
-                      padding: EdgeInsets.only(top: 8),
-                      child: ListTile(
-                        leading: Container(
-                          width: 280,
-                          child: Text(
-                            "Postpaid.serialDevice_photo".tr().toString(),
-                            style: TextStyle(
-                              color: Color(0xFF11120e),
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
+                (Permessions.contains('05.02.01.01') == true)&& (this.device5GType=="Outdoor" )?
+                Container(): Container(
+                  height: 60,
+                  padding: EdgeInsets.only(top: 8),
+                  child: ListTile(
+                    leading: Container(
+                      width: 280,
+                      child: Text(
+                        "Postpaid.serialDevice_photo".tr().toString(),
+                        style: TextStyle(
+                          color: Color(0xFF11120e),
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    trailing: _loadSerialDevice == true
+                        ? Container(
+                      child: IconButton(
+                          icon: Icon(Icons.delete),
+                          color: Color(0xff0070c9),
+                          onPressed: () =>
+                          {clearImageSerialDevice()}),
+                    )
+                        : null,
+                  ),
+                ),
+
+                (Permessions.contains('05.02.01.01') == true)&& (this.device5GType!="Outdoor" )?
+                Container(
+                  child: buildImageSerialDevice(),
+                ):Container(),
+
+                // serial devide bar code
+                this.device5GType!="Outdoor" ?
+                Container(
+                  child: Column(
+                    children: [
+                      Container(
+                        height: 60,
+                        padding: EdgeInsets.only(top: 8),
+                        child: ListTile(
+                          leading: Container(
+                            width: 280,
+                            child: Text(
+                              "Postpaid.serialDevice_information"
+                                  .tr()
+                                  .toString(),
+                              style: TextStyle(
+                                color: Color(0xFF11120e),
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
                         ),
-                        trailing: _loadSerialDevice == true
-                            ? Container(
-                          child: IconButton(
-                              icon: Icon(Icons.delete),
-                              color: Color(0xff0070c9),
-                              onPressed: () =>
-                              {clearImageSerialDevice()}),
-                        )
-                            : null,
                       ),
-                    ),
-
-                    (Permessions.contains('05.02.01.01') == true)&& (this.device5GType!="Outdoor" )?
-                    Container(
-                      child: buildImageSerialDevice(),
-                    ):Container(),
-
-                // serial devide bar code
-                    this.device5GType!="Outdoor" ?
-                    Container(
-                      child: Column(
-                        children: [
-                          Container(
-                            height: 60,
-                            padding: EdgeInsets.only(top: 8),
-                            child: ListTile(
-                              leading: Container(
-                                width: 280,
-                                child: Text(
-                                  "Postpaid.serialDevice_information"
-                                      .tr()
-                                      .toString(),
-                                  style: TextStyle(
-                                    color: Color(0xFF11120e),
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                          Container(
-                            color: Colors.white,
-                            padding:
-                            EdgeInsets.only(left: 15, right: 15, bottom: 10),
-                            child: Column(
-                              children: <Widget>[
-                                Container(
-                                  child: Column(
-                                    children: <Widget>[
-                                      Image(
-                                          image: AssetImage(
-                                              'assets/images/barcode-scan.png'),
-                                          width: 160,
-                                          height: 160),
-                                      TextButton(
-                                        child: Text(
-                                          "Menu_Form.ScanBarcode".tr().toString(),
-                                          style: TextStyle(
-                                              color: Colors.black,
-                                              letterSpacing: 0,
-                                              fontSize: 21,
-                                              fontWeight: FontWeight.bold),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Container(
-                                  height: 48,
-                                  width: 420,
-                                  margin: EdgeInsets.symmetric(horizontal: 10),
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(50),
-                                    color: isRental==true?Color(0xFFEBECF1):Color(0xFF4f2565),
-                                  ),
-                                  child: TextButton(
-                                    style: TextButton.styleFrom(
-                                      backgroundColor:isRental==true?Color(0xFFEBECF1): Color(0xFF4f2565),
-                                      shape: const BeveledRectangleBorder(
-                                          borderRadius: BorderRadius.all(
-                                              Radius.circular(24))),
-                                    ),
-                                    onPressed: () => isRental==true?null:_ScanSerialDevice(),
+                      Container(
+                        color: Colors.white,
+                        padding:
+                        EdgeInsets.only(left: 15, right: 15, bottom: 10),
+                        child: Column(
+                          children: <Widget>[
+                            Container(
+                              child: Column(
+                                children: <Widget>[
+                                  Image(
+                                      image: AssetImage(
+                                          'assets/images/barcode-scan.png'),
+                                      width: 160,
+                                      height: 160),
+                                  TextButton(
                                     child: Text(
-                                      "Menu_Form.StartScan".tr().toString(),
+                                      "Menu_Form.ScanBarcode".tr().toString(),
                                       style: TextStyle(
-                                          color:isRental==true?Colors.black54: Colors.white,
+                                          color: Colors.black,
                                           letterSpacing: 0,
-                                          fontSize: 16,
+                                          fontSize: 21,
                                           fontWeight: FontWeight.bold),
                                     ),
                                   ),
+                                ],
+                              ),
+                            ),
+                            Container(
+                              height: 48,
+                              width: 420,
+                              margin: EdgeInsets.symmetric(horizontal: 10),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(50),
+                                color: isRental==true?Color(0xFFEBECF1):Color(0xFF4f2565),
+                              ),
+                              child: TextButton(
+                                style: TextButton.styleFrom(
+                                  backgroundColor:isRental==true?Color(0xFFEBECF1): Color(0xFF4f2565),
+                                  shape: const BeveledRectangleBorder(
+                                      borderRadius: BorderRadius.all(
+                                          Radius.circular(24))),
                                 ),
-                              ],
+                                onPressed: () => isRental==true?null:_ScanSerialDevice(),
+                                child: Text(
+                                  "Menu_Form.StartScan".tr().toString(),
+                                  style: TextStyle(
+                                      color:isRental==true?Colors.black54: Colors.white,
+                                      letterSpacing: 0,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold),
+                                ),
+                              ),
                             ),
-                          ),
-                          Container(
-                            height: 55,
-                            width: 420,
-                            margin: const EdgeInsets.only(left: 20.0, right: 20.0),
-                            decoration: BoxDecoration(),
-                            child: Row(children: <Widget>[
-                              Expanded(
-                                child: new Container(
-                                    margin: const EdgeInsets.only(
-                                        left: 10.0, right: 20.0),
-                                    child: Divider(
-                                      color: Colors.black,
-                                      height: 36,
-                                    )),
-                              ),
-                              Text(
-                                "Menu_Form.OR".tr().toString(),
-                              ),
-                              Expanded(
-                                child: new Container(
-                                    margin: const EdgeInsets.only(
-                                        left: 20.0, right: 10.0),
-                                    child: Divider(
-                                      color: Colors.black,
-                                      height: 36,
-                                    )),
-                              ),
-                            ]),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ):Container(),
-                    this.device5GType!="Outdoor" ?
-                    Container(
-                      color: Colors.white,
-                      padding: EdgeInsets.only(left: 15, right: 15, top: 10),
-                      child: Column(
-                        children: <Widget>[
-                          Container(
-                            alignment: Alignment.centerLeft,
-                            child: Column(
-                              children: <Widget>[
-                                SizedBox(height: 10),
-                                _SerialNumber(),
-                              ],
-                            ),
+                      Container(
+                        height: 55,
+                        width: 420,
+                        margin: const EdgeInsets.only(left: 20.0, right: 20.0),
+                        decoration: BoxDecoration(),
+                        child: Row(children: <Widget>[
+                          Expanded(
+                            child: new Container(
+                                margin: const EdgeInsets.only(
+                                    left: 10.0, right: 20.0),
+                                child: Divider(
+                                  color: Colors.black,
+                                  height: 36,
+                                )),
                           ),
-                          SizedBox(height: 10),
-                        ],
+                          Text(
+                            "Menu_Form.OR".tr().toString(),
+                          ),
+                          Expanded(
+                            child: new Container(
+                                margin: const EdgeInsets.only(
+                                    left: 20.0, right: 10.0),
+                                child: Divider(
+                                  color: Colors.black,
+                                  height: 36,
+                                )),
+                          ),
+                        ]),
                       ),
-                    ):Container(),
+                    ],
+                  ),
+                ):Container(),
+                this.device5GType!="Outdoor" ?
+                Container(
+                  color: Colors.white,
+                  padding: EdgeInsets.only(left: 15, right: 15, top: 10),
+                  child: Column(
+                    children: <Widget>[
+                      Container(
+                        alignment: Alignment.centerLeft,
+                        child: Column(
+                          children: <Widget>[
+                            SizedBox(height: 10),
+                            _SerialNumber(),
+                          ],
+                        ),
+                      ),
+                      SizedBox(height: 10),
+                    ],
+                  ),
+                ):Container(),
 
-                    SizedBox(height: 20),
-                  /* buildUserNote(),
+                SizedBox(height: 20),
+                /* buildUserNote(),
                     SizedBox(height: 20),*/
                 msg,
                 SizedBox(
@@ -5107,191 +5228,191 @@ class _BroadBandJordainianState extends State<BroadBandJordainian> {
                           : () async {
 
 
-                              if (referenceNumber.text == '') {
+                        if (referenceNumber.text == '') {
+                          setState(() {
+                            emptyReferenceNumber = true;
+                          });
+                        }
+                        if (referenceNumber.text != '') {
+                          setState(() {
+                            emptyReferenceNumber = false;
+                          });
+                          if (referenceNumber.text.length != 10) {
+                            setState(() {
+                              errorReferenceNumber = true;
+                            });
+                          } if(referenceNumber.text.length == 10) {
+                            setState(() {
+                              errorReferenceNumber = false;
+                            });
+                            if (
+                            referenceNumber.text.substring(0, 10) == '0000000000') {
+                              setState(() {
+                                errorReferenceNumber = true;
+                              });
+                            }
+                          }
+                        }
+                        if(documentExpiryDate.text ==""){
+                          setState(() {
+                            emptyDocumentExpiryDate = true;
+                          });
+                        }
+                        if(documentExpiryDate.text !=""){
+                          setState(() {
+                            emptyDocumentExpiryDate = false;
+                          });
+                        }
+
+                        //check 5Gbakages-> not required - 4GPackages-> required "Parent Eligible"
+
+                        if(Packages_5G==false){
+
+                          if (isParentEligible == true) {
+                            if (isParentEligibleShow.text == '') {
+                              setState(() {
+                                emptyParentEligibleShow = true;
+                              });
+                            }
+                            if (isParentEligibleShow.text != '') {
+                              setState(() {
+                                emptyParentEligibleShow = false;
+                              });
+                              if (isParentEligibleShow.text.length != 10 ||
+                                  isParentEligibleShow.text
+                                      .substring(0, 3) !=
+                                      '079') {
                                 setState(() {
-                                  emptyReferenceNumber = true;
+                                  errorParentEligibleShow = true;
                                 });
                               }
-                              if (referenceNumber.text != '') {
-                                setState(() {
-                                  emptyReferenceNumber = false;
-                                });
-                                if (referenceNumber.text.length != 10) {
-                                  setState(() {
-                                    errorReferenceNumber = true;
-                                  });
-                                } if(referenceNumber.text.length == 10) {
-                                  setState(() {
-                                    errorReferenceNumber = false;
-                                  });
-                                  if (
-                                  referenceNumber.text.substring(0, 10) == '0000000000') {
-                                    setState(() {
-                                      errorReferenceNumber = true;
-                                    });
-                                  }
-                                }
-                              }
-                              if(documentExpiryDate.text ==""){
-                                setState(() {
-                                  emptyDocumentExpiryDate = true;
-                                });
-                              }
-                              if(documentExpiryDate.text !=""){
-                                setState(() {
-                                  emptyDocumentExpiryDate = false;
-                                });
-                              }
+                            }
+                          } else {
+                            setState(() {
+                              isParentEligibleShow.text = '';
+                            });
+                          }
 
-                              //check 5Gbakages-> not required - 4GPackages-> required "Parent Eligible"
-
-                              if(Packages_5G==false){
-
-                                if (isParentEligible == true) {
-                                  if (isParentEligibleShow.text == '') {
-                                    setState(() {
-                                      emptyParentEligibleShow = true;
-                                    });
-                                  }
-                                  if (isParentEligibleShow.text != '') {
-                                    setState(() {
-                                      emptyParentEligibleShow = false;
-                                    });
-                                    if (isParentEligibleShow.text.length != 10 ||
-                                        isParentEligibleShow.text
-                                            .substring(0, 3) !=
-                                            '079') {
-                                      setState(() {
-                                        errorParentEligibleShow = true;
-                                      });
-                                    }
-                                  }
-                                } else {
-                                  setState(() {
-                                    isParentEligibleShow.text = '';
-                                  });
-                                }
-
-                              }
+                        }
 
 
 
-                              if (img64Front == null) {
-                                setState(() {
-                                  imageIDFrontRequired = true;
-                                });
-                              }
-                              if (img64Front != null) {
-                                setState(() {
-                                  imageIDFrontRequired = false;
-                                });
-                              }
-                              if (img64Back == null) {
-                                setState(() {
-                                  imageIDBackRequired = true;
-                                });
-                              }
-                              if (img64Back != null) {
-                                setState(() {
-                                  imageIDBackRequired = false;
-                                });
-                              }
+                        if (img64Front == null) {
+                          setState(() {
+                            imageIDFrontRequired = true;
+                          });
+                        }
+                        if (img64Front != null) {
+                          setState(() {
+                            imageIDFrontRequired = false;
+                          });
+                        }
+                        if (img64Back == null) {
+                          setState(() {
+                            imageIDBackRequired = true;
+                          });
+                        }
+                        if (img64Back != null) {
+                          setState(() {
+                            imageIDBackRequired = false;
+                          });
+                        }
 
-                              if (simCard.text == '') {
-                                setState(() {
-                                  emptySimCard = true;
-                                });
-                              }
-                              if (simCard.text != '') {
-                                setState(() {
-                                  emptySimCard = false;
-                                });
-                              }
-
-
-                              if (Permessions.contains('05.02.01.09') == true) {
-                                if (img64Contract == null) {
-                                  setState(() {
-                                    imageContractRequired = true;
-                                  });
-                                }
-                                if (img64Contract != null) {
-                                  setState(() {
-                                    imageContractRequired = false;
-                                  });
-                                }
-                              }
-
-                              /************************************New 14-6-2023*********************************/
-                              if( this.device5GType!="Outdoor" ){
-                                if (img64SerialDevice == null) {
-                                  setState(() {
-                                    imageSerialDeviceRequired = true;
-                                  });
-                                }
-                                if (img64SerialDevice != null) {
-                                  setState(() {
-                                    imageSerialDeviceRequired = false;
-                                  });
-                                }
-                              }
-
-                              /*********************************************************************************/
+                        if (simCard.text == '') {
+                          setState(() {
+                            emptySimCard = true;
+                          });
+                        }
+                        if (simCard.text != '') {
+                          setState(() {
+                            emptySimCard = false;
+                          });
+                        }
 
 
+                        if (Permessions.contains('05.02.01.09') == true) {
+                          if (img64Contract == null) {
+                            setState(() {
+                              imageContractRequired = true;
+                            });
+                          }
+                          if (img64Contract != null) {
+                            setState(() {
+                              imageContractRequired = false;
+                            });
+                          }
+                        }
 
-                              /////////////////////////////////////////////new 17-4-2023///////////////////////////////////////
-                              if(role=="ZainTelesales"){
-                                if(on_BEHALF==true){
-                                  if(selectedBEHALF_key==null){
-                                    setState(() {
-                                      emptyselectedBEHALF=true;
-                                    });
-                                  }
-                                  else{
-                                    setState(() {
-                                      emptyselectedBEHALF=false;
-                                    });
-                                  }
-                                }
+                        /************************************New 14-6-2023*********************************/
+                        if( this.device5GType!="Outdoor" ){
+                          if (img64SerialDevice == null) {
+                            setState(() {
+                              imageSerialDeviceRequired = true;
+                            });
+                          }
+                          if (img64SerialDevice != null) {
+                            setState(() {
+                              imageSerialDeviceRequired = false;
+                            });
+                          }
+                        }
 
-                                if(reseller==true){
-                                  if(selectedReseller_key==null){
-                                    setState(() {
-                                      emptyselectedReseller=true;
-                                    });
-                                  }
-                                  else{
-                                    setState(() {
-                                      emptyselectedReseller=false;
-                                    });
-                                  }
-                                }
-                              }
-                              ///////////////////////////////////////////////////////////////////////////////////////////////
-
-                                  if ( role=="ZainTelesales") {
-                                  if(on_BEHALF==true && reseller==false){
+                        /*********************************************************************************/
 
 
 
-                                    showToast("Notifications_Form.switch_required".tr().toString(),
-                                        context: context,
-                                        animation: StyledToastAnimation.scale,
-                                        fullWidth: true);
-                                  }
+                        /////////////////////////////////////////////new 17-4-2023///////////////////////////////////////
+                        if(role=="ZainTelesales"){
+                          if(on_BEHALF==true){
+                            if(selectedBEHALF_key==null){
+                              setState(() {
+                                emptyselectedBEHALF=true;
+                              });
+                            }
+                            else{
+                              setState(() {
+                                emptyselectedBEHALF=false;
+                              });
+                            }
+                          }
 
-                                  if(on_BEHALF==false && reseller==true){
+                          if(reseller==true){
+                            if(selectedReseller_key==null){
+                              setState(() {
+                                emptyselectedReseller=true;
+                              });
+                            }
+                            else{
+                              setState(() {
+                                emptyselectedReseller=false;
+                              });
+                            }
+                          }
+                        }
+                        ///////////////////////////////////////////////////////////////////////////////////////////////
+
+                        if ( role=="ZainTelesales") {
+                          if(on_BEHALF==true && reseller==false){
 
 
-                                    showToast("Notifications_Form.switch_required".tr().toString(),
-                                        context: context,
-                                        animation: StyledToastAnimation.scale,
-                                        fullWidth: true);
-                                  }
+
+                            showToast("Notifications_Form.switch_required".tr().toString(),
+                                context: context,
+                                animation: StyledToastAnimation.scale,
+                                fullWidth: true);
+                          }
+
+                          if(on_BEHALF==false && reseller==true){
 
 
-                                 /* if(Permessions.contains('05.02.01.09')==true){
+                            showToast("Notifications_Form.switch_required".tr().toString(),
+                                context: context,
+                                animation: StyledToastAnimation.scale,
+                                fullWidth: true);
+                          }
+
+
+                          /* if(Permessions.contains('05.02.01.09')==true){
 
                                   }
 
@@ -5300,391 +5421,150 @@ class _BroadBandJordainianState extends State<BroadBandJordainian> {
 
                                   }*/
 
-                                  if(on_BEHALF==true && reseller==true){
-                                    if ((Permessions.contains('05.02.01.01') == true) && (this.device5GType!="Outdoor" )) {
-                                      if (img64SerialDevice == null) {
-                                        setState(() {
-                                          imageSerialDeviceRequired = true;
-                                        });
-                                      }
-                                      if (img64SerialDevice != null) {
-                                        setState(() {
-                                          imageSerialDeviceRequired = false;
-                                        });
-                                      }
-                                    }
+                          if(on_BEHALF==true && reseller==true){
+                            if ((Permessions.contains('05.02.01.01') == true) && (this.device5GType!="Outdoor" )) {
+                              if (img64SerialDevice == null) {
+                                setState(() {
+                                  imageSerialDeviceRequired = true;
+                                });
+                              }
+                              if (img64SerialDevice != null) {
+                                setState(() {
+                                  imageSerialDeviceRequired = false;
+                                });
+                              }
+                            }
 
-                                    if (Permessions.contains('05.02.01.01') == true) {
+                            if (Permessions.contains('05.02.01.01') == true) {
 
-                                      if(Packages_5G==false){
-                                        if (isParentEligible == true && isParentEligibleShow.text == '') {
-                                          setState(() {
-                                            emptyParentEligibleShow = true;
-                                          });
-                                        }
-                                        if (isParentEligible == true &&
-                                            isParentEligibleShow.text != '') {
-                                          if (img64Front != null &&
-                                              img64Back != null &&
-                                              img64SerialDevice != null &&
-                                              referenceNumber.text != '' &&
+                              if(Packages_5G==false){
+                                if (isParentEligible == true && isParentEligibleShow.text == '') {
+                                  setState(() {
+                                    emptyParentEligibleShow = true;
+                                  });
+                                }
+                                if (isParentEligible == true &&
+                                    isParentEligibleShow.text != '') {
+                                  if (img64Front != null &&
+                                      img64Back != null &&
+                                      img64SerialDevice != null &&
+                                      referenceNumber.text != '' &&
 
-                                              documentExpiryDate.text != ''&&
-                                              clearSucssesFlag == 1 &&
-                                              simCard.text != ''&&selectedBEHALF_key !=null &&selectedReseller_key !=null) {
-                                            showAlertDialogSaveData(
-                                                context,
-                                                ' المبلغ الإجمالي المطلوب هو ${General_price} هل أنت متأكد من حفظ البيانات؟',
-                                                "The total amount wanted is :${General_price} JD are you sure you want to save data?");
-                                          }else{
-                                            showToast("Notifications_Form.notifications_required_fields".tr().toString(),
-                                                context: context,
-                                                animation: StyledToastAnimation.scale,
-                                                fullWidth: true);
-                                          }
-                                        }
-                                        if (isParentEligible == false) {
-                                          if (img64Front != null &&
-                                              img64Back != null &&
-                                              img64SerialDevice != null &&
-                                              referenceNumber.text != '' &&
-                                              documentExpiryDate.text != ''&&
-                                              clearSucssesFlag == 1 &&
-                                              simCard.text != ''&&selectedBEHALF_key !=null &&selectedReseller_key !=null) {
-                                            showAlertDialogSaveData(
-                                                context,
-                                                ' المبلغ الإجمالي المطلوب هو ${General_price} هل أنت متأكد من حفظ البيانات؟',
-                                                "The total amount wanted is :${General_price} JD are you sure you want to save data?");
-                                          }
-                                        }
-                                      }
-
-
-
-                                      if(Packages_5G==true){
-
-                                        if (isParentEligible == true ) {
-
-                                          if(this.device5GType!="Outdoor" ){
-                                            if (img64Front != null &&
-                                                img64Back != null &&
-                                                img64SerialDevice != null &&
-                                                referenceNumber.text != '' &&
-                                                documentExpiryDate.text != ''&&
-                                                clearSucssesFlag == 1 &&
-                                                simCard.text != ''&&
-                                                selectedBEHALF_key !=null &&
-                                                selectedReseller_key !=null) {
-                                              showAlertDialogSaveData(
-                                                  context,
-                                                  ' المبلغ الإجمالي المطلوب هو ${General_price} هل أنت متأكد من حفظ البيانات؟',
-                                                  "The total amount wanted is :${General_price} JD are you sure you want to save data?");
-                                            }else{
-                                              showToast("Notifications_Form.notifications_required_fields".tr().toString(),
-                                                  context: context,
-                                                  animation: StyledToastAnimation.scale,
-                                                  fullWidth: true);
-                                            }
-                                          }
-
-                                          if(this.device5GType=="Outdoor" ){
-
-                                            if (img64Front != null &&
-                                                img64Back != null &&
-                                                referenceNumber.text != '' &&
-                                                documentExpiryDate.text != ''&&
-                                                clearSucssesFlag == 1 &&
-                                                simCard.text != ''&&
-                                                selectedBEHALF_key !=null &&
-                                                selectedReseller_key !=null) {
-                                              showAlertDialogSaveData(
-                                                  context,
-                                                  ' المبلغ الإجمالي المطلوب هو ${General_price} هل أنت متأكد من حفظ البيانات؟',
-                                                  "The total amount wanted is :${General_price} JD are you sure you want to save data?");
-                                            }else{
-                                              showToast("Notifications_Form.notifications_required_fields".tr().toString(),
-                                                  context: context,
-                                                  animation: StyledToastAnimation.scale,
-                                                  fullWidth: true);
-                                            }
-
-                                          }
-
-                                        }
-
-                                        if (isParentEligible == false) {
-
-                                           if(this.device5GType!="Outdoor" ){
-
-                                             if (img64Front != null &&
-                                                 img64Back != null &&
-                                                 img64SerialDevice != null &&
-                                                 referenceNumber.text != '' &&
-                                                 documentExpiryDate.text != ''&&
-                                                 clearSucssesFlag == 1 &&
-                                                 simCard.text != ''&&selectedBEHALF_key !=null &&selectedReseller_key !=null) {
-                                               showAlertDialogSaveData(
-                                                   context,
-                                                   ' المبلغ الإجمالي المطلوب هو ${General_price} هل أنت متأكد من حفظ البيانات؟',
-                                                   "The total amount wanted is :${General_price} JD are you sure you want to save data?");
-                                             }
-                                           }
-
-
-                                           if(this.device5GType=="Outdoor" ){
-
-
-                                             if (img64Front != null &&
-                                                 img64Back != null &&
-                                                 referenceNumber.text != '' &&
-                                                 documentExpiryDate.text != ''&&
-                                                 clearSucssesFlag == 1 &&
-                                                 simCard.text != ''&&selectedBEHALF_key !=null &&selectedReseller_key !=null) {
-                                               showAlertDialogSaveData(
-                                                   context,
-                                                   ' المبلغ الإجمالي المطلوب هو ${General_price} هل أنت متأكد من حفظ البيانات؟',
-                                                   "The total amount wanted is :${General_price} JD are you sure you want to save data?");
-                                             }
-                                           }
-
-                                        }
-
-                                      }
-
-                                    }
-
-
-
-
-                                    if (Permessions.contains('05.02.01.01') == false) {
-                                      if(Packages_5G==false){
-                                        if (isParentEligible == true && isParentEligibleShow.text == '') {
-                                          setState(() {
-                                            emptyParentEligibleShow = true;
-                                          });
-                                        }
-
-                                        if (isParentEligible == true && isParentEligibleShow.text != '') {
-                                          if (img64Front != null &&
-                                              img64Back != null &&
-                                              referenceNumber.text != '' &&
-                                              documentExpiryDate.text != ''&&
-                                              clearSucssesFlag == 1 &&
-                                              simCard.text != ''&&selectedBEHALF_key !=null &&selectedReseller_key !=null) {
-                                            showAlertDialogSaveData(
-                                                context,
-                                                ' المبلغ الإجمالي المطلوب هو ${General_price} هل أنت متأكد من حفظ البيانات؟',
-                                                "The total amount wanted is :${General_price} JD are you sure you want to save data?");
-                                          }
-                                        }
-
-                                        if (isParentEligible == false) {
-                                          if (img64Front != null &&
-                                              img64Back != null &&
-                                              referenceNumber.text != '' &&
-                                              documentExpiryDate.text != ''&&
-                                              clearSucssesFlag == 1 &&
-                                              simCard.text != ''&&selectedBEHALF_key !=null &&selectedReseller_key !=null) {
-                                            showAlertDialogSaveData(
-                                                context,
-                                                ' المبلغ الإجمالي المطلوب هو ${General_price} هل أنت متأكد من حفظ البيانات؟',
-                                                "The total amount wanted is :${General_price} JD are you sure you want to save data?");
-                                          }
-                                        }
-                                      }
-
-                                      if(Packages_5G==true){
-
-                                        if (isParentEligible == true ) {
-
-                                          if (img64Front != null &&
-                                              img64Back != null &&
-                                              referenceNumber.text != '' &&
-                                              documentExpiryDate.text != ''&&
-                                              clearSucssesFlag == 1 &&
-                                              simCard.text != ''&&selectedBEHALF_key !=null &&selectedReseller_key !=null) {
-                                            showAlertDialogSaveData(
-                                                context,
-                                                ' المبلغ الإجمالي المطلوب هو ${General_price} هل أنت متأكد من حفظ البيانات؟',
-                                                "The total amount wanted is :${General_price} JD are you sure you want to save data?");
-                                          }
-                                        }
-
-
-
-                                        if (isParentEligible == false) {
-                                          if (img64Front != null &&
-                                              img64Back != null &&
-                                              referenceNumber.text != '' &&
-                                              documentExpiryDate.text != ''&&
-                                              clearSucssesFlag == 1 &&
-                                              simCard.text != ''&&selectedBEHALF_key !=null &&selectedReseller_key !=null) {
-                                            showAlertDialogSaveData(
-                                                context,
-                                                ' المبلغ الإجمالي المطلوب هو ${General_price} هل أنت متأكد من حفظ البيانات؟',
-                                                "The total amount wanted is :${General_price} JD are you sure you want to save data?");
-                                          }
-                                        }
-
-
-
-                                    }
-
-                                    }
-                                  }
-
-
-                                  if(on_BEHALF==false && reseller==false){
-                                    showToast("Notifications_Form.switch_required".tr().toString(),
+                                      documentExpiryDate.text != ''&&
+                                      clearSucssesFlag == 1 &&
+                                      simCard.text != ''&&selectedBEHALF_key !=null &&selectedReseller_key !=null) {
+                                    showAlertDialogSaveData(
+                                        context,
+                                        ' المبلغ الإجمالي المطلوب هو ${General_price} هل أنت متأكد من حفظ البيانات؟',
+                                        "The total amount wanted is :${General_price} JD are you sure you want to save data?");
+                                  }else{
+                                    showToast("Notifications_Form.notifications_required_fields".tr().toString(),
                                         context: context,
                                         animation: StyledToastAnimation.scale,
                                         fullWidth: true);
                                   }
-                                  }
-
-
-                              if (Permessions.contains('05.02.01.01') == true &&  role!="ZainTelesales" && (this.device5GType!="Outdoor" )) {
-                                if (img64SerialDevice == null) {
-                                  setState(() {
-                                    imageSerialDeviceRequired = true;
-                                  });
                                 }
-                                if (img64SerialDevice != null) {
-                                  setState(() {
-                                    imageSerialDeviceRequired = false;
-                                  });
+                                if (isParentEligible == false) {
+                                  if (img64Front != null &&
+                                      img64Back != null &&
+                                      img64SerialDevice != null &&
+                                      referenceNumber.text != '' &&
+                                      documentExpiryDate.text != ''&&
+                                      clearSucssesFlag == 1 &&
+                                      simCard.text != ''&&selectedBEHALF_key !=null &&selectedReseller_key !=null) {
+                                    showAlertDialogSaveData(
+                                        context,
+                                        ' المبلغ الإجمالي المطلوب هو ${General_price} هل أنت متأكد من حفظ البيانات؟',
+                                        "The total amount wanted is :${General_price} JD are you sure you want to save data?");
+                                  }
                                 }
                               }
 
-                              if (Permessions.contains('05.02.01.01') == true &&  role!="ZainTelesales") {
-                                if(Packages_5G==false){
-                                  if (isParentEligible == true && isParentEligibleShow.text == '') {
-                                    setState(() {
-                                      emptyParentEligibleShow = true;
-                                    });
-                                  }
-                                  if (isParentEligible == true && isParentEligibleShow.text != '') {
-                                    if (img64Front != null &&
-                                        img64Back != null &&
-                                        img64SerialDevice != null &&
-                                        referenceNumber.text != '' &&
-                                        documentExpiryDate.text != ''&&
-                                        clearSucssesFlag == 1 &&
-                                        simCard.text != '') {
-                                      showAlertDialogSaveData(
-                                          context,
-                                          ' المبلغ الإجمالي المطلوب هو ${General_price} هل أنت متأكد من حفظ البيانات؟',
-                                          "The total amount wanted is :${General_price} JD are you sure you want to save data?");
-                                    }else{
-                                      showToast("Notifications_Form.notifications_required_fields".tr().toString(),
-                                          context: context,
-                                          animation: StyledToastAnimation.scale,
-                                          fullWidth: true);
-                                    }
-                                  }
-                                  if (isParentEligible == false) {
-                                    if (img64Front != null &&
-                                        img64Back != null &&
-                                        img64SerialDevice != null &&
-                                        referenceNumber.text != '' &&
-                                        documentExpiryDate.text != ''&&
-                                        clearSucssesFlag == 1 &&
-                                        simCard.text != '') {
-                                      showAlertDialogSaveData(
-                                          context,
-                                          ' المبلغ الإجمالي المطلوب هو ${General_price} هل أنت متأكد من حفظ البيانات؟',
-                                          "The total amount wanted is :${General_price} JD are you sure you want to save data?");
-                                    }else{
-                                      showToast("Notifications_Form.notifications_required_fields".tr().toString(),
-                                          context: context,
-                                          animation: StyledToastAnimation.scale,
-                                          fullWidth: true);
-                                    }
-                                  }
-                                }
 
-                                if(Packages_5G==true){
+
+                              if(Packages_5G==true){
+
+                                if (isParentEligible == true ) {
+
                                   if(this.device5GType!="Outdoor" ){
-
-                                    if (isParentEligible == true ) {
-                                      if (img64Front != null &&
-                                          img64Back != null &&
-                                          img64SerialDevice != null &&
-                                          referenceNumber.text != '' &&
-                                          documentExpiryDate.text != ''&&
-                                          clearSucssesFlag == 1 &&
-                                          simCard.text != '') {
-                                        showAlertDialogSaveData(
-                                            context,
-                                            ' المبلغ الإجمالي المطلوب هو ${General_price} هل أنت متأكد من حفظ البيانات؟',
-                                            "The total amount wanted is :${General_price} JD are you sure you want to save data?");
-                                      }else{
-                                        showToast("Notifications_Form.notifications_required_fields".tr().toString(),
-                                            context: context,
-                                            animation: StyledToastAnimation.scale,
-                                            fullWidth: true);
-                                      }
+                                    if (img64Front != null &&
+                                        img64Back != null &&
+                                        img64SerialDevice != null &&
+                                        referenceNumber.text != '' &&
+                                        documentExpiryDate.text != ''&&
+                                        clearSucssesFlag == 1 &&
+                                        simCard.text != ''&&
+                                        selectedBEHALF_key !=null &&
+                                        selectedReseller_key !=null) {
+                                      showAlertDialogSaveData(
+                                          context,
+                                          ' المبلغ الإجمالي المطلوب هو ${General_price} هل أنت متأكد من حفظ البيانات؟',
+                                          "The total amount wanted is :${General_price} JD are you sure you want to save data?");
+                                    }else{
+                                      showToast("Notifications_Form.notifications_required_fields".tr().toString(),
+                                          context: context,
+                                          animation: StyledToastAnimation.scale,
+                                          fullWidth: true);
                                     }
-                                    if (isParentEligible == false) {
-                                      if (img64Front != null &&
-                                          img64Back != null &&
-                                          img64SerialDevice != null &&
-                                          referenceNumber.text != '' &&
-                                          documentExpiryDate.text != ''&&
-                                          clearSucssesFlag == 1 &&
-                                          simCard.text != '') {
-                                        showAlertDialogSaveData(
-                                            context,
-                                            ' المبلغ الإجمالي المطلوب هو ${General_price} هل أنت متأكد من حفظ البيانات؟',
-                                            "The total amount wanted is :${General_price} JD are you sure you want to save data?");
-                                      }else{
-                                        showToast("Notifications_Form.notifications_required_fields".tr().toString(),
-                                            context: context,
-                                            animation: StyledToastAnimation.scale,
-                                            fullWidth: true);
-                                      }
-                                    }
-
                                   }
 
                                   if(this.device5GType=="Outdoor" ){
 
-                                    if (isParentEligible == true ) {
-                                      if (img64Front != null &&
-                                          img64Back != null &&
-
-                                          referenceNumber.text != '' &&
-                                          documentExpiryDate.text != ''&&
-                                          clearSucssesFlag == 1 &&
-                                          simCard.text != '') {
-                                        showAlertDialogSaveData(
-                                            context,
-                                            ' المبلغ الإجمالي المطلوب هو ${General_price} هل أنت متأكد من حفظ البيانات؟',
-                                            "The total amount wanted is :${General_price} JD are you sure you want to save data?");
-                                      }else{
-                                        showToast("Notifications_Form.notifications_required_fields".tr().toString(),
-                                            context: context,
-                                            animation: StyledToastAnimation.scale,
-                                            fullWidth: true);
-                                      }
+                                    if (img64Front != null &&
+                                        img64Back != null &&
+                                        referenceNumber.text != '' &&
+                                        documentExpiryDate.text != ''&&
+                                        clearSucssesFlag == 1 &&
+                                        simCard.text != ''&&
+                                        selectedBEHALF_key !=null &&
+                                        selectedReseller_key !=null) {
+                                      showAlertDialogSaveData(
+                                          context,
+                                          ' المبلغ الإجمالي المطلوب هو ${General_price} هل أنت متأكد من حفظ البيانات؟',
+                                          "The total amount wanted is :${General_price} JD are you sure you want to save data?");
+                                    }else{
+                                      showToast("Notifications_Form.notifications_required_fields".tr().toString(),
+                                          context: context,
+                                          animation: StyledToastAnimation.scale,
+                                          fullWidth: true);
                                     }
-                                    if (isParentEligible == false) {
-                                      if (img64Front != null &&
-                                          img64Back != null &&
-                                          referenceNumber.text != '' &&
-                                          documentExpiryDate.text != ''&&
-                                          clearSucssesFlag == 1 &&
-                                          simCard.text != '') {
-                                        showAlertDialogSaveData(
-                                            context,
-                                            ' المبلغ الإجمالي المطلوب هو ${General_price} هل أنت متأكد من حفظ البيانات؟',
-                                            "The total amount wanted is :${General_price} JD are you sure you want to save data?");
-                                      }else{
-                                        showToast("Notifications_Form.notifications_required_fields".tr().toString(),
-                                            context: context,
-                                            animation: StyledToastAnimation.scale,
-                                            fullWidth: true);
-                                      }
+
+                                  }
+
+                                }
+
+                                if (isParentEligible == false) {
+
+                                  if(this.device5GType!="Outdoor" ){
+
+                                    if (img64Front != null &&
+                                        img64Back != null &&
+                                        img64SerialDevice != null &&
+                                        referenceNumber.text != '' &&
+                                        documentExpiryDate.text != ''&&
+                                        clearSucssesFlag == 1 &&
+                                        simCard.text != ''&&selectedBEHALF_key !=null &&selectedReseller_key !=null) {
+                                      showAlertDialogSaveData(
+                                          context,
+                                          ' المبلغ الإجمالي المطلوب هو ${General_price} هل أنت متأكد من حفظ البيانات؟',
+                                          "The total amount wanted is :${General_price} JD are you sure you want to save data?");
+                                    }
+                                  }
+
+
+                                  if(this.device5GType=="Outdoor" ){
+
+
+                                    if (img64Front != null &&
+                                        img64Back != null &&
+                                        referenceNumber.text != '' &&
+                                        documentExpiryDate.text != ''&&
+                                        clearSucssesFlag == 1 &&
+                                        simCard.text != ''&&selectedBEHALF_key !=null &&selectedReseller_key !=null) {
+                                      showAlertDialogSaveData(
+                                          context,
+                                          ' المبلغ الإجمالي المطلوب هو ${General_price} هل أنت متأكد من حفظ البيانات؟',
+                                          "The total amount wanted is :${General_price} JD are you sure you want to save data?");
                                     }
                                   }
 
@@ -5692,98 +5572,339 @@ class _BroadBandJordainianState extends State<BroadBandJordainian> {
 
                               }
 
-                              if (Permessions.contains('05.02.01.01') == false &&  role!="ZainTelesales") {
-                                if(Packages_5G==false){
+                            }
 
-                                  if (isParentEligible == true && isParentEligibleShow.text == '') {
-                                    setState(() {
-                                      emptyParentEligibleShow = true;
-                                    });
-                                  }
-                                  if (isParentEligible == true && isParentEligibleShow.text != '') {
-                                    if (img64Front != null &&
-                                        img64Back != null &&
-                                        referenceNumber.text != '' &&
-                                        documentExpiryDate.text != ''&&
-                                        clearSucssesFlag == 1 &&
-                                        simCard.text != '') {
-                                      showAlertDialogSaveData(
-                                          context,
-                                          ' المبلغ الإجمالي المطلوب هو ${General_price} هل أنت متأكد من حفظ البيانات؟',
-                                          "The total amount wanted is :${General_price} JD are you sure you want to save data?");
-                                    }else{
-                                      showToast("Notifications_Form.notifications_required_fields".tr().toString(),
-                                          context: context,
-                                          animation: StyledToastAnimation.scale,
-                                          fullWidth: true);
-                                    }
-                                  }
-                                  if (isParentEligible == false) {
-                                    if (img64Front != null &&
-                                        img64Back != null &&
-                                        referenceNumber.text != '' &&
-                                        documentExpiryDate.text != ''&&
-                                        clearSucssesFlag == 1 &&
-                                        simCard.text != '') {
-                                      showAlertDialogSaveData(
-                                          context,
-                                          ' المبلغ الإجمالي المطلوب هو ${General_price} هل أنت متأكد من حفظ البيانات؟',
-                                          "The total amount wanted is :${General_price} JD are you sure you want to save data?");
-                                    }else{
-                                      showToast("Notifications_Form.notifications_required_fields".tr().toString(),
-                                          context: context,
-                                          animation: StyledToastAnimation.scale,
-                                          fullWidth: true);
-                                    }
+
+
+
+                            if (Permessions.contains('05.02.01.01') == false) {
+                              if(Packages_5G==false){
+                                if (isParentEligible == true && isParentEligibleShow.text == '') {
+                                  setState(() {
+                                    emptyParentEligibleShow = true;
+                                  });
+                                }
+
+                                if (isParentEligible == true && isParentEligibleShow.text != '') {
+                                  if (img64Front != null &&
+                                      img64Back != null &&
+                                      referenceNumber.text != '' &&
+                                      documentExpiryDate.text != ''&&
+                                      clearSucssesFlag == 1 &&
+                                      simCard.text != ''&&selectedBEHALF_key !=null &&selectedReseller_key !=null) {
+                                    showAlertDialogSaveData(
+                                        context,
+                                        ' المبلغ الإجمالي المطلوب هو ${General_price} هل أنت متأكد من حفظ البيانات؟',
+                                        "The total amount wanted is :${General_price} JD are you sure you want to save data?");
                                   }
                                 }
 
-                                if(Packages_5G==true){
-                                  if (isParentEligible == true ) {
-                                    if (img64Front != null &&
-                                        img64Back != null &&
-                                        referenceNumber.text != '' &&
-                                        documentExpiryDate.text != ''&&
-                                        clearSucssesFlag == 1 &&
-                                        simCard.text != '') {
-                                      showAlertDialogSaveData(
-                                          context,
-                                          ' المبلغ الإجمالي المطلوب هو ${General_price} هل أنت متأكد من حفظ البيانات؟',
-                                          "The total amount wanted is :${General_price} JD are you sure you want to save data?");
-                                    }else{
-                                      showToast("Notifications_Form.notifications_required_fields".tr().toString(),
-                                          context: context,
-                                          animation: StyledToastAnimation.scale,
-                                          fullWidth: true);
-                                    }
-                                  }
-                                  if (isParentEligible == false) {
-                                    if (img64Front != null &&
-                                        img64Back != null &&
-                                        referenceNumber.text != '' &&
-                                        documentExpiryDate.text != ''&&
-                                        clearSucssesFlag == 1 &&
-                                        simCard.text != '') {
-                                      showAlertDialogSaveData(
-                                          context,
-                                          ' المبلغ الإجمالي المطلوب هو ${General_price} هل أنت متأكد من حفظ البيانات؟',
-                                          "The total amount wanted is :${General_price} JD are you sure you want to save data?");
-                                    }else{
-                                      showToast("Notifications_Form.notifications_required_fields".tr().toString(),
-                                          context: context,
-                                          animation: StyledToastAnimation.scale,
-                                          fullWidth: true);
-                                    }
+                                if (isParentEligible == false) {
+                                  if (img64Front != null &&
+                                      img64Back != null &&
+                                      referenceNumber.text != '' &&
+                                      documentExpiryDate.text != ''&&
+                                      clearSucssesFlag == 1 &&
+                                      simCard.text != ''&&selectedBEHALF_key !=null &&selectedReseller_key !=null) {
+                                    showAlertDialogSaveData(
+                                        context,
+                                        ' المبلغ الإجمالي المطلوب هو ${General_price} هل أنت متأكد من حفظ البيانات؟',
+                                        "The total amount wanted is :${General_price} JD are you sure you want to save data?");
                                   }
                                 }
+                              }
+
+                              if(Packages_5G==true){
+
+                                if (isParentEligible == true ) {
+
+                                  if (img64Front != null &&
+                                      img64Back != null &&
+                                      referenceNumber.text != '' &&
+                                      documentExpiryDate.text != ''&&
+                                      clearSucssesFlag == 1 &&
+                                      simCard.text != ''&&selectedBEHALF_key !=null &&selectedReseller_key !=null) {
+                                    showAlertDialogSaveData(
+                                        context,
+                                        ' المبلغ الإجمالي المطلوب هو ${General_price} هل أنت متأكد من حفظ البيانات؟',
+                                        "The total amount wanted is :${General_price} JD are you sure you want to save data?");
+                                  }
+                                }
+
+
+
+                                if (isParentEligible == false) {
+                                  if (img64Front != null &&
+                                      img64Back != null &&
+                                      referenceNumber.text != '' &&
+                                      documentExpiryDate.text != ''&&
+                                      clearSucssesFlag == 1 &&
+                                      simCard.text != ''&&selectedBEHALF_key !=null &&selectedReseller_key !=null) {
+                                    showAlertDialogSaveData(
+                                        context,
+                                        ' المبلغ الإجمالي المطلوب هو ${General_price} هل أنت متأكد من حفظ البيانات؟',
+                                        "The total amount wanted is :${General_price} JD are you sure you want to save data?");
+                                  }
+                                }
+
+
 
                               }
-                            },
+
+                            }
+                          }
+
+
+                          if(on_BEHALF==false && reseller==false){
+                            showToast("Notifications_Form.switch_required".tr().toString(),
+                                context: context,
+                                animation: StyledToastAnimation.scale,
+                                fullWidth: true);
+                          }
+                        }
+
+
+                        if (Permessions.contains('05.02.01.01') == true &&  role!="ZainTelesales" && (this.device5GType!="Outdoor" )) {
+                          if (img64SerialDevice == null) {
+                            setState(() {
+                              imageSerialDeviceRequired = true;
+                            });
+                          }
+                          if (img64SerialDevice != null) {
+                            setState(() {
+                              imageSerialDeviceRequired = false;
+                            });
+                          }
+                        }
+
+                        if (Permessions.contains('05.02.01.01') == true &&  role!="ZainTelesales") {
+                          if(Packages_5G==false){
+                            if (isParentEligible == true && isParentEligibleShow.text == '') {
+                              setState(() {
+                                emptyParentEligibleShow = true;
+                              });
+                            }
+                            if (isParentEligible == true && isParentEligibleShow.text != '') {
+                              if (img64Front != null &&
+                                  img64Back != null &&
+                                  img64SerialDevice != null &&
+                                  referenceNumber.text != '' &&
+                                  documentExpiryDate.text != ''&&
+                                  clearSucssesFlag == 1 &&
+                                  simCard.text != '') {
+                                showAlertDialogSaveData(
+                                    context,
+                                    ' المبلغ الإجمالي المطلوب هو ${General_price} هل أنت متأكد من حفظ البيانات؟',
+                                    "The total amount wanted is :${General_price} JD are you sure you want to save data?");
+                              }else{
+                                showToast("Notifications_Form.notifications_required_fields".tr().toString(),
+                                    context: context,
+                                    animation: StyledToastAnimation.scale,
+                                    fullWidth: true);
+                              }
+                            }
+                            if (isParentEligible == false) {
+                              if (img64Front != null &&
+                                  img64Back != null &&
+                                  img64SerialDevice != null &&
+                                  referenceNumber.text != '' &&
+                                  documentExpiryDate.text != ''&&
+                                  clearSucssesFlag == 1 &&
+                                  simCard.text != '') {
+                                showAlertDialogSaveData(
+                                    context,
+                                    ' المبلغ الإجمالي المطلوب هو ${General_price} هل أنت متأكد من حفظ البيانات؟',
+                                    "The total amount wanted is :${General_price} JD are you sure you want to save data?");
+                              }else{
+                                showToast("Notifications_Form.notifications_required_fields".tr().toString(),
+                                    context: context,
+                                    animation: StyledToastAnimation.scale,
+                                    fullWidth: true);
+                              }
+                            }
+                          }
+
+                          if(Packages_5G==true){
+                            if(this.device5GType!="Outdoor" ){
+
+                              if (isParentEligible == true ) {
+                                if (img64Front != null &&
+                                    img64Back != null &&
+                                    img64SerialDevice != null &&
+                                    referenceNumber.text != '' &&
+                                    documentExpiryDate.text != ''&&
+                                    clearSucssesFlag == 1 &&
+                                    simCard.text != '') {
+                                  showAlertDialogSaveData(
+                                      context,
+                                      ' المبلغ الإجمالي المطلوب هو ${General_price} هل أنت متأكد من حفظ البيانات؟',
+                                      "The total amount wanted is :${General_price} JD are you sure you want to save data?");
+                                }else{
+                                  showToast("Notifications_Form.notifications_required_fields".tr().toString(),
+                                      context: context,
+                                      animation: StyledToastAnimation.scale,
+                                      fullWidth: true);
+                                }
+                              }
+                              if (isParentEligible == false) {
+                                if (img64Front != null &&
+                                    img64Back != null &&
+                                    img64SerialDevice != null &&
+                                    referenceNumber.text != '' &&
+                                    documentExpiryDate.text != ''&&
+                                    clearSucssesFlag == 1 &&
+                                    simCard.text != '') {
+                                  showAlertDialogSaveData(
+                                      context,
+                                      ' المبلغ الإجمالي المطلوب هو ${General_price} هل أنت متأكد من حفظ البيانات؟',
+                                      "The total amount wanted is :${General_price} JD are you sure you want to save data?");
+                                }else{
+                                  showToast("Notifications_Form.notifications_required_fields".tr().toString(),
+                                      context: context,
+                                      animation: StyledToastAnimation.scale,
+                                      fullWidth: true);
+                                }
+                              }
+
+                            }
+
+                            if(this.device5GType=="Outdoor" ){
+
+                              if (isParentEligible == true ) {
+                                if (img64Front != null &&
+                                    img64Back != null &&
+
+                                    referenceNumber.text != '' &&
+                                    documentExpiryDate.text != ''&&
+                                    clearSucssesFlag == 1 &&
+                                    simCard.text != '') {
+                                  showAlertDialogSaveData(
+                                      context,
+                                      ' المبلغ الإجمالي المطلوب هو ${General_price} هل أنت متأكد من حفظ البيانات؟',
+                                      "The total amount wanted is :${General_price} JD are you sure you want to save data?");
+                                }else{
+                                  showToast("Notifications_Form.notifications_required_fields".tr().toString(),
+                                      context: context,
+                                      animation: StyledToastAnimation.scale,
+                                      fullWidth: true);
+                                }
+                              }
+                              if (isParentEligible == false) {
+                                if (img64Front != null &&
+                                    img64Back != null &&
+                                    referenceNumber.text != '' &&
+                                    documentExpiryDate.text != ''&&
+                                    clearSucssesFlag == 1 &&
+                                    simCard.text != '') {
+                                  showAlertDialogSaveData(
+                                      context,
+                                      ' المبلغ الإجمالي المطلوب هو ${General_price} هل أنت متأكد من حفظ البيانات؟',
+                                      "The total amount wanted is :${General_price} JD are you sure you want to save data?");
+                                }else{
+                                  showToast("Notifications_Form.notifications_required_fields".tr().toString(),
+                                      context: context,
+                                      animation: StyledToastAnimation.scale,
+                                      fullWidth: true);
+                                }
+                              }
+                            }
+
+                          }
+
+                        }
+
+                        if (Permessions.contains('05.02.01.01') == false &&  role!="ZainTelesales") {
+                          if(Packages_5G==false){
+
+                            if (isParentEligible == true && isParentEligibleShow.text == '') {
+                              setState(() {
+                                emptyParentEligibleShow = true;
+                              });
+                            }
+                            if (isParentEligible == true && isParentEligibleShow.text != '') {
+                              if (img64Front != null &&
+                                  img64Back != null &&
+                                  referenceNumber.text != '' &&
+                                  documentExpiryDate.text != ''&&
+                                  clearSucssesFlag == 1 &&
+                                  simCard.text != '') {
+                                showAlertDialogSaveData(
+                                    context,
+                                    ' المبلغ الإجمالي المطلوب هو ${General_price} هل أنت متأكد من حفظ البيانات؟',
+                                    "The total amount wanted is :${General_price} JD are you sure you want to save data?");
+                              }else{
+                                showToast("Notifications_Form.notifications_required_fields".tr().toString(),
+                                    context: context,
+                                    animation: StyledToastAnimation.scale,
+                                    fullWidth: true);
+                              }
+                            }
+                            if (isParentEligible == false) {
+                              if (img64Front != null &&
+                                  img64Back != null &&
+                                  referenceNumber.text != '' &&
+                                  documentExpiryDate.text != ''&&
+                                  clearSucssesFlag == 1 &&
+                                  simCard.text != '') {
+                                showAlertDialogSaveData(
+                                    context,
+                                    ' المبلغ الإجمالي المطلوب هو ${General_price} هل أنت متأكد من حفظ البيانات؟',
+                                    "The total amount wanted is :${General_price} JD are you sure you want to save data?");
+                              }else{
+                                showToast("Notifications_Form.notifications_required_fields".tr().toString(),
+                                    context: context,
+                                    animation: StyledToastAnimation.scale,
+                                    fullWidth: true);
+                              }
+                            }
+                          }
+
+                          if(Packages_5G==true){
+                            if (isParentEligible == true ) {
+                              if (img64Front != null &&
+                                  img64Back != null &&
+                                  referenceNumber.text != '' &&
+                                  documentExpiryDate.text != ''&&
+                                  clearSucssesFlag == 1 &&
+                                  simCard.text != '') {
+                                showAlertDialogSaveData(
+                                    context,
+                                    ' المبلغ الإجمالي المطلوب هو ${General_price} هل أنت متأكد من حفظ البيانات؟',
+                                    "The total amount wanted is :${General_price} JD are you sure you want to save data?");
+                              }else{
+                                showToast("Notifications_Form.notifications_required_fields".tr().toString(),
+                                    context: context,
+                                    animation: StyledToastAnimation.scale,
+                                    fullWidth: true);
+                              }
+                            }
+                            if (isParentEligible == false) {
+                              if (img64Front != null &&
+                                  img64Back != null &&
+                                  referenceNumber.text != '' &&
+                                  documentExpiryDate.text != ''&&
+                                  clearSucssesFlag == 1 &&
+                                  simCard.text != '') {
+                                showAlertDialogSaveData(
+                                    context,
+                                    ' المبلغ الإجمالي المطلوب هو ${General_price} هل أنت متأكد من حفظ البيانات؟',
+                                    "The total amount wanted is :${General_price} JD are you sure you want to save data?");
+                              }else{
+                                showToast("Notifications_Form.notifications_required_fields".tr().toString(),
+                                    context: context,
+                                    animation: StyledToastAnimation.scale,
+                                    fullWidth: true);
+                              }
+                            }
+                          }
+
+                        }
+                      },
                       style: TextButton.styleFrom(
                         backgroundColor: Color(0xFF4f2565),
                         shape: const BeveledRectangleBorder(
                             borderRadius:
-                                BorderRadius.all(Radius.circular(24))),
+                            BorderRadius.all(Radius.circular(24))),
                       ),
                       child: Text(
                         "Postpaid.Next".tr().toString(),

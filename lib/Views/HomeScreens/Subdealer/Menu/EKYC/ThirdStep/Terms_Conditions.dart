@@ -9,7 +9,8 @@ import 'package:sales_app/Views/HomeScreens/Subdealer/Menu/Ekyc/EKYC_Colors/ekyc
 import 'package:sales_app/Views/HomeScreens/Subdealer/Menu/EKYC/GlobalVariables/global_variables.dart';
 class Terms_Conditions extends StatefulWidget {
   final Function onStepChanged;
-   Terms_Conditions({ this.onStepChanged});
+  final bool isPostPaidFlow; // True if coming from PostPaidOptions
+   Terms_Conditions({ this.onStepChanged, this.isPostPaidFlow = false});
 
   @override
   State<Terms_Conditions> createState() => _Terms_ConditionsState();
@@ -94,15 +95,12 @@ class _Terms_ConditionsState extends State<Terms_Conditions> {
 
 
   Future<bool> onWillPop() async {
-    DateTime currentTime = DateTime.now();
-    bool backButton = backButtonPressedTime == null ||
-        currentTime.difference(backButtonPressedTime) > Duration(seconds: 0);
-    if (backButton) {
-      backButtonPressedTime = currentTime;
-      Navigator.pop(context);
-      return true;
-    }
-    return true;
+    // Clear terms when going back
+    setState(() {
+      globalVars.termCondition1 = false;
+      globalVars.termCondition2 = false;
+    });
+    return true; // Allow back navigation
   }
 
   @override
@@ -111,7 +109,27 @@ class _Terms_ConditionsState extends State<Terms_Conditions> {
       child: GestureDetector(
         onTap: () => FocusScope.of(context).unfocus(),
         child: Scaffold(
-
+            appBar: AppBar(
+              leading: IconButton(
+                icon: Icon(Icons.arrow_back, color: Colors.white),
+                onPressed: () {
+                  // Clear terms when going back
+                  setState(() {
+                    globalVars.termCondition1 = false;
+                    globalVars.termCondition2 = false;
+                  });
+                  Navigator.pop(context);
+                },
+              ),
+              centerTitle: true,
+              title: Text(
+                EasyLocalization.of(context).locale == Locale("en", "US")
+                    ? "Terms & Conditions"
+                    : "الشروط والأحكام",
+                style: TextStyle(color: Colors.white),
+              ),
+              backgroundColor: Color(0xFF4f2565),
+            ),
             backgroundColor: Color(0xFFEBECF1),
             body:  ListView(
               shrinkWrap: true,
@@ -394,6 +412,11 @@ class _Terms_ConditionsState extends State<Terms_Conditions> {
                 ),
                 onPressed: () {
                   setState(() {
+                    // Clear terms when going back
+                    globalVars.termCondition1 = false;
+                    globalVars.termCondition2 = false;
+                    
+                    // Handle different scenarios
                     if (globalVars.currentStep > 1) {
                       if(globalVars.goToTermCondition == true){
                         globalVars.currentStep -= 2;
@@ -402,28 +425,27 @@ class _Terms_ConditionsState extends State<Terms_Conditions> {
                         globalVars.reservedNumber = false;
                         globalVars.numberSelected="";
                         globalVars.referanceNumber = "";
-                        globalVars.termCondition1 =false;
-                        globalVars.termCondition2 =false;
                       }
-                      if(globalVars.goToTermCondition == false){
+                      else if(globalVars.goToTermCondition == false){
                         globalVars.currentStep--;
                         widget.onStepChanged();
                         globalVars.selectedItemIndex = -1;
                         globalVars.reservedNumber = false;
                         globalVars.numberSelected="";
                         globalVars.referanceNumber = "";
-                        globalVars.termCondition1 =false;
-                        globalVars.termCondition2 =false;
-
-
                       }
-
+                      else {
+                        // Coming from PostPaidOptions or other screen, just pop
+                        Navigator.pop(context);
+                        return;
+                      }
+                      widget.onStepChanged();
+                      getScreen();
+                      print("Back Step: ${globalVars.currentStep}");
                     } else {
-
+                      // Just go back if at first step
+                      Navigator.pop(context);
                     }
-                    widget.onStepChanged();
-                    getScreen();
-                    print("Back Step: ${globalVars.currentStep}");
                   });
                 },
                 child: Row(
@@ -446,16 +468,20 @@ class _Terms_ConditionsState extends State<Terms_Conditions> {
                   primary: ekycColors.buttonPrimary,
                 ),
                 onPressed: () {
-                  setState(() {
-
-                    if ( globalVars.currentStep < 6) { // Ensure the last step is 5
-                      globalVars.currentStep++;
-                      widget.onStepChanged(); // Notify the parent widget to update value
-                    }
-                    getScreen();
-
-                    print("Next Step: ${globalVars.currentStep}");
-                  });
+                  // If coming from PostPaidOptions (no eKYC flow), just pop back
+                  if (widget.isPostPaidFlow) {
+                    Navigator.pop(context);
+                  } else {
+                    // Normal eKYC flow navigation
+                    setState(() {
+                      if ( globalVars.currentStep < 6) { // Ensure the last step is 5
+                        globalVars.currentStep++;
+                        widget.onStepChanged(); // Notify the parent widget to update value
+                      }
+                      getScreen();
+                      print("Next Step: ${globalVars.currentStep}");
+                    });
+                  }
                 },
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,

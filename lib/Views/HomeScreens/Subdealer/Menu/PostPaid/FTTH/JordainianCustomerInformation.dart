@@ -21,6 +21,7 @@ import 'package:mime/mime.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:sales_app/Shared/BaseUrl.dart';
+import 'package:sales_app/Views/HomeScreens/Subdealer/Menu/EKYC/GlobalVariables/global_variables.dart';
 import 'package:sales_app/Views/ReusableComponents/requiredText.dart';
 import 'package:sales_app/blocs/CustomerService/SendOTPSCheckMSISDN/SendOTPSCheckMSISDN_bloc.dart';
 import 'package:sales_app/blocs/CustomerService/VerifyOTPSCheckMSISDN/VerifyOTPSCheckMSISDN_bloc.dart';
@@ -44,9 +45,11 @@ import 'package:sales_app/blocs/PostPaid/PostpaidGenerateContract/postpaidGenera
 import 'package:sales_app/blocs/PostPaid/PostpaidGenerateContract/postpaidGenerateContract_state.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dropdown_search/dropdown_search.dart';
+import 'package:camera/camera.dart';
 
 import '../../../../../../main.dart';
 import 'contract_details.dart';
+import '../PostpaidIdentificationSelfRecording.dart';
 
 class JordainianCustomerInformation extends StatefulWidget {
   var role;
@@ -156,6 +159,12 @@ class _JordainianCustomerInformationState
   TextEditingController ticketNo = TextEditingController();
   TextEditingController salesLeadValue = TextEditingController();
   TextEditingController tawasoleNumber= TextEditingController();
+  
+  // 🎯 Name fields from eKYC OCR
+  TextEditingController FirstName = TextEditingController();
+  TextEditingController SecondName = TextEditingController();
+  TextEditingController ThirdName = TextEditingController();
+  TextEditingController LastName = TextEditingController();
 
 
   VerifyOTPSCheckMSISDNBloc verifyOTPSCheckMSISDNBloc;
@@ -302,6 +311,62 @@ class _JordainianCustomerInformationState
     MSISDN.text = msisdn;
     Password.text = password;
     UserName.text = userName;
+    
+    // 🎯 Populate name fields from eKYC OCR data (globalVars)
+    // For Jordanian IDs, use Arabic names if available, otherwise English
+    if (globalVars.fullNameAr.isNotEmpty) {
+      List<String> nameParts = globalVars.fullNameAr.split(' ');
+      if (nameParts.length >= 1) FirstName.text = nameParts[0];
+      if (nameParts.length >= 2) SecondName.text = nameParts[1];
+      if (nameParts.length >= 3) ThirdName.text = nameParts[2];
+      if (nameParts.length >= 4) LastName.text = nameParts[3];
+    } else if (globalVars.fullNameEn.isNotEmpty) {
+      List<String> nameParts = globalVars.fullNameEn.split(' ');
+      if (nameParts.length >= 1) FirstName.text = nameParts[0];
+      if (nameParts.length >= 2) SecondName.text = nameParts[1];
+      if (nameParts.length >= 3) ThirdName.text = nameParts[2];
+    }
+    
+    // 🎯 Set surname (last name) if not already set from Arabic name
+    if (LastName.text.isEmpty && globalVars.surname.isNotEmpty) {
+      LastName.text = globalVars.surname;
+    }
+    
+    // 🎯 Set document expiry date from globalVars
+    // Handle both ISO format ("2035-07-15") and separate day/month/year fields
+    if (globalVars.expirayDate.isNotEmpty) {
+      // Parse ISO date format: "2035-07-15" or "2035-07-15T00:00:00.000+0000"
+      try {
+        String dateStr = globalVars.expirayDate.split('T').first; // Remove time portion if exists
+        List<String> parts = dateStr.split('-'); // Split by hyphen: ["2035", "07", "15"]
+        if (parts.length == 3) {
+          String year = parts[0];
+          String month = parts[1];
+          String day = parts[2];
+          // Format as DD/MM/YYYY
+          documentExpiryDate.text = "$day/$month/$year";
+        }
+      } catch (e) {
+        print('❌ Error parsing expiry date: $e');
+      }
+    } else if (globalVars.expiryDay.isNotEmpty && globalVars.expiryMonth.isNotEmpty && globalVars.expiryYear.isNotEmpty) {
+      // Fallback: use separate day/month/year fields (for passports)
+      int expiryYear = int.tryParse(globalVars.expiryYear) ?? 0;
+      if (expiryYear < 100) {
+        expiryYear = expiryYear < 50 ? 2000 + expiryYear : 1900 + expiryYear;
+      }
+      // Format as DD/MM/YYYY
+      String formattedExpiry = "${globalVars.expiryDay.padLeft(2, '0')}/${globalVars.expiryMonth.padLeft(2, '0')}/$expiryYear";
+      documentExpiryDate.text = formattedExpiry;
+    }
+    
+    print('📝 Jordanian Customer Info Initialized');
+    print('  - National Number: ${NationalNumber.text}');
+    print('  - First Name: ${FirstName.text}');
+    print('  - Second Name: ${SecondName.text}');
+    print('  - Third Name: ${ThirdName.text}');
+    print('  - Last Name: ${LastName.text}');
+    print('  - Document Expiry: ${documentExpiryDate.text}');
   }
 
   final msg =
@@ -1119,6 +1184,124 @@ class _JordainianCustomerInformationState
     );
   }
 
+  /*****************************************************************************************************/
+  // ✅ Pre-submit validation - calls API to validate before proceeding to liveness
+  preSubmitValidation_API() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    Map test = {
+      "MarketType": this.marketType,
+      "IsJordanian": true, // Jordanian
+      "NationalNo": nationalNumber,
+      "PassportNo": null,
+      "PackageCode": this.packageCode,
+      "Msisdn": this.msisdn,
+      "isClaimed": claim
+    };
+
+    String body = json.encode(test);
+    var apiArea = urls.BASE_URL + '/Postpaid/preSubmitValidation';
+    final Uri url = Uri.parse(apiArea);
+    prefs.getString("accessToken");
+    final access = prefs.getString("accessToken");
+
+    final response = await http.post(
+      url,
+      headers: {
+        "content-type": "application/json",
+        "Authorization": prefs.getString("accessToken")
+      },
+      body: body,
+    );
+    int statusCode = response.statusCode;
+    var data = response.request;
+    print(statusCode);
+    print(data);
+    print(response);
+    print('body: [${response.body}]');
+
+    if (statusCode == 401) {
+      print('401  error ');
+    }
+    if (statusCode == 200) {
+      print("yes");
+      var result = json.decode(response.body);
+      print(result);
+      print('----------------Jordanian FTTH PreSubmit---------------');
+      print(result["data"]);
+      if (result["data"] == null) {}
+      if (result["status"] == 0) {
+        print(result["data"]);
+        _navigateToVideoRecording();
+        // ✅ Navigate to video recording screen instead of showing dialog
+
+      } else {}
+
+      print('-------------------------------');
+      print('Sucses API');
+      print(urls.BASE_URL + '/Postpaid/preSubmitValidation');
+
+      return result;
+    } else {}
+  }
+  /*****************************************************************************************************/
+  
+  // ✅ Navigate to video recording screen for eKYC
+  void _navigateToVideoRecording() async {
+    try {
+      // Get available cameras
+      final cameras = await availableCameras();
+      
+      // Get eKYC session UID and token from SharedPreferences or globalVars
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      String sessionUid = globalVars.sessionUid ?? '';
+      String ekycToken = globalVars.ekycTokenID ?? '';
+      
+      print('📹 Navigating to video recording screen...');
+      print('Session UID: $sessionUid');
+      print('MSISDN: $msisdn');
+      
+      // ✅ Navigate to shared video recording screen
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => PostpaidIdentificationSelfRecording(
+            cameras: cameras,
+            sessionUid: sessionUid,
+            ekycToken: ekycToken,
+            onVideoRecorded: (videoPath, videoHash) {
+              // Video successfully recorded and uploaded
+              print('✅ Video recorded successfully!');
+              print('Video Path: $videoPath');
+              print('Video Hash: $videoHash');
+              
+              // Close video recording screen
+              Navigator.pop(context);
+              
+              // ✅ Show confirmation dialog
+              _showPriceConfirmationDialog();
+            },
+          ),
+        ),
+      );
+    } catch (e) {
+      print('❌ Error navigating to video recording: $e');
+      showToast(
+        "خطأ في فتح شاشة تسجيل الفيديو",
+        context: context,
+        animation: StyledToastAnimation.scale,
+        fullWidth: true,
+      );
+    }
+  }
+  
+  // ✅ Show price confirmation dialog after video recording
+  void _showPriceConfirmationDialog() {
+    showAlertDialogSaveData(
+        context,
+        ' هل انت متأكد من المتابعة؟  ',
+        'Are you sure you want to continue?');
+  }
+
   SendOtp() async {
     print('called');
     SharedPreferences prefs = await SharedPreferences.getInstance();
@@ -1534,6 +1717,151 @@ class _JordainianCustomerInformationState
                 borderSide:
                     const BorderSide(color: Color(0xFF4f2565), width: 1.0),
               ),
+              fillColor: Color(0xFFEBECF1),
+              filled: true,
+              contentPadding: EdgeInsets.all(16),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+  
+  // 🎯 Name fields from eKYC OCR data
+  Widget buildFirstName() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(
+          EasyLocalization.of(context).locale == Locale("en", "US") 
+              ? "First Name" 
+              : "الاسم الأول",
+          style: TextStyle(
+            color: Color(0xff11120e),
+            fontSize: 14,
+            fontWeight: FontWeight.normal,
+          ),
+        ),
+        SizedBox(height: 10),
+        Container(
+          height: 58,
+          child: TextField(
+            controller: FirstName,
+            enabled: false,
+            style: TextStyle(color: Color(0xFF5A6F84)),
+            decoration: InputDecoration(
+              border: OutlineInputBorder(
+                  borderSide: BorderSide(width: 1, color: Color(0xFFD1D7E0))),
+              disabledBorder: OutlineInputBorder(
+                  borderSide: BorderSide(width: 1, color: Color(0xFFD1D7E0))),
+              fillColor: Color(0xFFEBECF1),
+              filled: true,
+              contentPadding: EdgeInsets.all(16),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+  
+  Widget buildSecondName() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(
+          EasyLocalization.of(context).locale == Locale("en", "US") 
+              ? "Second Name" 
+              : "اسم الأب",
+          style: TextStyle(
+            color: Color(0xff11120e),
+            fontSize: 14,
+            fontWeight: FontWeight.normal,
+          ),
+        ),
+        SizedBox(height: 10),
+        Container(
+          height: 58,
+          child: TextField(
+            controller: SecondName,
+            enabled: false,
+            style: TextStyle(color: Color(0xFF5A6F84)),
+            decoration: InputDecoration(
+              border: OutlineInputBorder(
+                  borderSide: BorderSide(width: 1, color: Color(0xFFD1D7E0))),
+              disabledBorder: OutlineInputBorder(
+                  borderSide: BorderSide(width: 1, color: Color(0xFFD1D7E0))),
+              fillColor: Color(0xFFEBECF1),
+              filled: true,
+              contentPadding: EdgeInsets.all(16),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+  
+  Widget buildThirdName() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(
+          EasyLocalization.of(context).locale == Locale("en", "US") 
+              ? "Third Name" 
+              : "اسم الجد",
+          style: TextStyle(
+            color: Color(0xff11120e),
+            fontSize: 14,
+            fontWeight: FontWeight.normal,
+          ),
+        ),
+        SizedBox(height: 10),
+        Container(
+          height: 58,
+          child: TextField(
+            controller: ThirdName,
+            enabled: false,
+            style: TextStyle(color: Color(0xFF5A6F84)),
+            decoration: InputDecoration(
+              border: OutlineInputBorder(
+                  borderSide: BorderSide(width: 1, color: Color(0xFFD1D7E0))),
+              disabledBorder: OutlineInputBorder(
+                  borderSide: BorderSide(width: 1, color: Color(0xFFD1D7E0))),
+              fillColor: Color(0xFFEBECF1),
+              filled: true,
+              contentPadding: EdgeInsets.all(16),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+  
+  Widget buildLastName() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(
+          EasyLocalization.of(context).locale == Locale("en", "US") 
+              ? "Last Name" 
+              : "الاسم الاخير",
+          style: TextStyle(
+            color: Color(0xff11120e),
+            fontSize: 14,
+            fontWeight: FontWeight.normal,
+          ),
+        ),
+        SizedBox(height: 10),
+        Container(
+          height: 58,
+          child: TextField(
+            controller: LastName,
+            enabled: false,
+            style: TextStyle(color: Color(0xFF5A6F84)),
+            decoration: InputDecoration(
+              border: OutlineInputBorder(
+                  borderSide: BorderSide(width: 1, color: Color(0xFFD1D7E0))),
+              disabledBorder: OutlineInputBorder(
+                  borderSide: BorderSide(width: 1, color: Color(0xFFD1D7E0))),
               fillColor: Color(0xFFEBECF1),
               filled: true,
               contentPadding: EdgeInsets.all(16),
@@ -4236,97 +4564,31 @@ class _JordainianCustomerInformationState
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        RichText(
-          text: TextSpan(
-            text: EasyLocalization.of(context).locale ==
-                Locale("en", "US")
-                ? "Document Expiry Date"
-                : "تاريخ انتهاء الوثيقة",
-            style: TextStyle(
-              color: Color(0xff11120e),
-              fontSize: 14,
-              fontWeight: FontWeight.normal,
-            ),
-            children: <TextSpan>[
-              TextSpan(
-                text: ' * ',
-                style: TextStyle(
-                  color: Color(0xFFB10000),
-                  fontSize: 14,
-                  fontWeight: FontWeight.normal,
-                ),
-              ),
-            ],
+        Text(
+          EasyLocalization.of(context).locale == Locale("en", "US")
+              ? "Document Expiry Date"
+              : "تاريخ انتهاء الوثيقة",
+          style: TextStyle(
+            color: Color(0xff11120e),
+            fontSize: 14,
+            fontWeight: FontWeight.normal,
           ),
         ),
         SizedBox(height: 10),
         Container(
-          alignment: Alignment.centerLeft,
           height: 58,
           child: TextField(
             controller: documentExpiryDate,
-            readOnly: true,
-            keyboardType: TextInputType.name,
-            style: TextStyle(color: Color(0xff11120e)),
-            decoration: new InputDecoration(
-              enabledBorder: emptyDocumentExpiryDate == true
-                  ? const OutlineInputBorder(
-                // width: 0.0 produces a thin "hairline" border
-                borderSide: const BorderSide(
-                    color: Color(0xFFB10000), width: 1.0),
-              )
-                  : const OutlineInputBorder(
-                // width: 0.0 produces a thin "hairline" border
-                borderSide: const BorderSide(
-                    color: Color(0xFFD1D7E0), width: 1.0),
-              ),
-              border: const OutlineInputBorder(),
-              focusedBorder: OutlineInputBorder(
-                borderSide:
-                const BorderSide(color: Color(0xFF4f2565), width: 1.0),
-              ),
+            enabled: false, // 🎯 Disabled - populated from eKYC OCR
+            style: TextStyle(color: Color(0xFF5A6F84)), // Gray text like First Name
+            decoration: InputDecoration(
+              border: OutlineInputBorder(
+                  borderSide: BorderSide(width: 1, color: Color(0xFFD1D7E0))),
+              disabledBorder: OutlineInputBorder(
+                  borderSide: BorderSide(width: 1, color: Color(0xFFD1D7E0))),
+              fillColor: Color(0xFFEBECF1), // Gray background like First Name
+              filled: true,
               contentPadding: EdgeInsets.all(16),
-              suffixIcon: Container(
-                child: IconButton(
-                    icon: new Image.asset("assets/images/icon-calendar.png"),
-                    onPressed: () async {
-                      showDatePicker(
-                        context: context,
-                        firstDate: DateTime.now(),
-                       // firstDate: DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day - 60),
-                        initialDate: DateTime.now(),
-                        lastDate:DateTime(DateTime.now().year+20,
-                        ),
-                        builder: (BuildContext context, Widget child) {
-                          return Theme(
-                            data: Theme.of(context).copyWith(
-                              colorScheme: ColorScheme.light(
-                                primary: Color(
-                                    0xFF4f2565), // header background color
-                                onPrimary: Colors.white, // header text color
-                                onSurface: Colors.black, // body text color
-                              ),
-                              textButtonTheme: TextButtonThemeData(
-                                style: TextButton.styleFrom(
-                                  primary:
-                                  Color(0xFF4f2565), // button text color
-                                ),
-                              ),
-                            ),
-                            child: child,
-                          );
-                        },
-                      ).then((fromData) => {
-                        setState(() {
-                          Expiry_Date = fromData;
-                          documentExpiryDate.text =
-                          "${fromData.day.toString().padLeft(2, '0')}/${fromData.month.toString().padLeft(2, '0')}/${fromData.year.toString()}";
-                        }),
-                      });
-                    }),
-              ),
-              hintText: "Test.dd/mm/yyyy".tr().toString(),
-              hintStyle: TextStyle(color: Color(0xffa4b0c1), fontSize: 14),
             ),
           ),
         ),
@@ -4522,6 +4784,15 @@ class _JordainianCustomerInformationState
                             height: 10,
                           ),
                           buildNationalNumber(),
+                          SizedBox(height: 10),
+                          // 🎯 Name fields from eKYC OCR
+                          buildFirstName(),
+                          SizedBox(height: 10),
+                          buildSecondName(),
+                          SizedBox(height: 10),
+                          buildThirdName(),
+                          SizedBox(height: 10),
+                          buildLastName(),
                           SizedBox(height: 10),
                           buildMSISDNNumber(),
                           emptyMSISDN == true
@@ -4765,7 +5036,8 @@ class _JordainianCustomerInformationState
 
               //////////////// end New////////////////////////////////////////
 
-
+              // 🚫 ID Card Capture Removed - Using eKYC ID OCR instead
+              /*
               Container(
                 height: 60,
                 child: ListTile(
@@ -4823,6 +5095,7 @@ class _JordainianCustomerInformationState
               Container(
                 child: buildImageIdBack(),
               ),
+              */
               Container(
                 height: 60,
                 padding: EdgeInsets.only(top: 8),
@@ -5248,7 +5521,9 @@ class _JordainianCustomerInformationState
                                 });
                               }
                             }
-
+                            
+                            // 🚫 ID card validation removed - Using eKYC ID OCR instead
+                            /*
                             if (img64Front == null) {
                               setState(() {
                                 imageIDFrontRequired = true;
@@ -5269,6 +5544,7 @@ class _JordainianCustomerInformationState
                                 imageIDBackRequired = false;
                               });
                             }
+                            */
                       /////////////////////////////////////////////new 17-4-2023///////////////////////////////////////
                       if(role=="ZainTelesales"){
                         if(on_BEHALF==true){
@@ -5312,8 +5588,8 @@ class _JordainianCustomerInformationState
                               area != null &&
                               street != null &&
                               building != null &&
-                              img64Front != null &&
-                              img64Back != null &&
+                              // img64Front != null && // ?? Removed - Using eKYC ID OCR
+                              // img64Back != null && // ?? Removed - Using eKYC ID OCR
 
                               referenceNumber.text != '' &&
 
@@ -5346,8 +5622,8 @@ class _JordainianCustomerInformationState
                               area != null &&
                               street != null &&
                               building != null &&
-                              img64Front != null &&
-                              img64Back != null &&
+                              // img64Front != null && // ?? Removed - Using eKYC ID OCR
+                              // img64Back != null && // ?? Removed - Using eKYC ID OCR
 
                               referenceNumber.text != '' &&
 
@@ -5377,8 +5653,8 @@ class _JordainianCustomerInformationState
                           duplicateSecondReferenceNumber == false &&
 
                               buildingCode.text != null &&
-                              img64Front != null &&
-                              img64Back != null &&
+                              // img64Front != null && // ?? Removed - Using eKYC ID OCR
+                              // img64Back != null && // ?? Removed - Using eKYC ID OCR
 
                               referenceNumber.text != '' &&
                               clearSucssesFlag == 1 &&
@@ -5390,10 +5666,8 @@ class _JordainianCustomerInformationState
                               referenceNumber2.text != '' &&
                               selectedBEHALF_key !=null&&
                               selectedReseller_key !=null ) {
-                            showAlertDialogSaveData(
-                                context,
-                                'هل أنت متأكد من حفظ البيانات',
-                                'Are you sure you want to save data');
+                            preSubmitValidation_API();
+
                           }else{
                             showToast("Notifications_Form.notifications_required_fields".tr().toString(),
                                 context: context,
@@ -5421,8 +5695,8 @@ class _JordainianCustomerInformationState
                                           area != null &&
                                           street != null &&
                                           building != null &&
-                                          img64Front != null &&
-                                          img64Back != null &&
+                                          // img64Front != null && // ?? Removed - Using eKYC ID OCR
+                                          // img64Back != null && // ?? Removed - Using eKYC ID OCR
                                           img64Location != null &&
                                           referenceNumber.text != '' &&
                                           clearSucssesFlag == 1 &&
@@ -5435,18 +5709,16 @@ class _JordainianCustomerInformationState
                                           referenceNumber2.text != '' &&
                                           extra_month != null &&
                                           free_extender != null) {
-                                        showAlertDialogSaveData(
-                                            context,
-                                            'هل أنت متأكد من حفظ البيانات',
-                                            'Are you sure you want to save data');
+                                        preSubmitValidation_API();
+
                                       }
                                     } else if (freeExtender == false) {
                                       if (duplicateSecondReferenceNumber == false &&
                                           area != null &&
                                           street != null &&
                                           building != null &&
-                                          img64Front != null &&
-                                          img64Back != null &&
+                                          // img64Front != null && // ?? Removed - Using eKYC ID OCR
+                                          // img64Back != null && // ?? Removed - Using eKYC ID OCR
                                           img64Location != null &&
                                           referenceNumber.text != '' &&
                                           clearSucssesFlag == 1 &&
@@ -5458,10 +5730,8 @@ class _JordainianCustomerInformationState
                                           mbbMsisdn.text != '' &&
                                           referenceNumber2.text != '' &&
                                           extra_month != null ) {
-                                        showAlertDialogSaveData(
-                                            context,
-                                            'هل أنت متأكد من حفظ البيانات',
-                                            'Are you sure you want to save data');
+                                        preSubmitValidation_API();
+
                                       }
                                     }
                                   } else if (extraMonth == false) {
@@ -5470,8 +5740,8 @@ class _JordainianCustomerInformationState
                                           area != null &&
                                           street != null &&
                                           building != null &&
-                                          img64Front != null &&
-                                          img64Back != null &&
+                                          // img64Front != null && // ?? Removed - Using eKYC ID OCR
+                                          // img64Back != null && // ?? Removed - Using eKYC ID OCR
                                           img64Location != null &&
                                           referenceNumber.text != '' &&
                                           clearSucssesFlag == 1 &&
@@ -5483,18 +5753,16 @@ class _JordainianCustomerInformationState
                                           mbbMsisdn.text != '' &&
                                           referenceNumber2.text != '' &&
                                           free_extender != null ) {
-                                        showAlertDialogSaveData(
-                                            context,
-                                            'هل أنت متأكد من حفظ البيانات',
-                                            'Are you sure you want to save data');
+                                        preSubmitValidation_API();
+
                                       }
                                     } else if (freeExtender == false) {
                                       if (duplicateSecondReferenceNumber == false &&
                                           area != null &&
                                           street != null &&
                                           building != null &&
-                                          img64Front != null &&
-                                          img64Back != null &&
+                                          // img64Front != null && // ?? Removed - Using eKYC ID OCR
+                                          // img64Back != null && // ?? Removed - Using eKYC ID OCR
                                           img64Location != null &&
                                           referenceNumber.text != '' &&
                                           clearSucssesFlag == 1 &&
@@ -5505,10 +5773,8 @@ class _JordainianCustomerInformationState
                                           Password.text != '' &&
                                           mbbMsisdn.text != '' &&
                                           referenceNumber2.text != '' ) {
-                                        showAlertDialogSaveData(
-                                            context,
-                                            'هل أنت متأكد من حفظ البيانات',
-                                            'Are you sure you want to save data');
+                                        preSubmitValidation_API();
+
                                       }
                                     }
                                   }
@@ -5517,8 +5783,8 @@ class _JordainianCustomerInformationState
                                     if (freeExtender == true) {
                                       if (duplicateSecondReferenceNumber == false &&
                                           buildingCode.text != '' &&
-                                          img64Front != null &&
-                                          img64Back != null &&
+                                          // img64Front != null && // ?? Removed - Using eKYC ID OCR
+                                          // img64Back != null && // ?? Removed - Using eKYC ID OCR
                                           referenceNumber.text != '' &&
                                           clearSucssesFlag == 1 &&
                                           optionValue!=null &&
@@ -5530,16 +5796,14 @@ class _JordainianCustomerInformationState
                                           referenceNumber2.text != '' &&
                                           extra_month != null &&
                                           free_extender != null ) {
-                                        showAlertDialogSaveData(
-                                            context,
-                                            'هل أنت متأكد من حفظ البيانات',
-                                            'Are you sure you want to save data');
+                                        preSubmitValidation_API();
+
                                       }
                                     } else if (freeExtender == false) {
                                       if (duplicateSecondReferenceNumber == false &&
                                           buildingCode.text != '' &&
-                                          img64Front != null &&
-                                          img64Back != null &&
+                                          // img64Front != null && // ?? Removed - Using eKYC ID OCR
+                                          // img64Back != null && // ?? Removed - Using eKYC ID OCR
                                           referenceNumber.text != '' &&
                                           clearSucssesFlag == 1 &&
                                           optionValue!=null &&
@@ -5550,18 +5814,16 @@ class _JordainianCustomerInformationState
                                           Password.text != '' &&
                                           referenceNumber2.text != '' &&
                                           extra_month != null ) {
-                                        showAlertDialogSaveData(
-                                            context,
-                                            'هل أنت متأكد من حفظ البيانات',
-                                            'Are you sure you want to save data');
+                                        preSubmitValidation_API();
+
                                       }
                                     }
                                   } else if (extraMonth == false) {
                                     if (freeExtender == true) {
                                       if (duplicateSecondReferenceNumber == false &&
                                           buildingCode.text != '' &&
-                                          img64Front != null &&
-                                          img64Back != null &&
+                                          // img64Front != null && // ?? Removed - Using eKYC ID OCR
+                                          // img64Back != null && // ?? Removed - Using eKYC ID OCR
                                           referenceNumber.text != '' &&
                                           clearSucssesFlag == 1 &&
                                           optionValue!=null &&
@@ -5572,16 +5834,14 @@ class _JordainianCustomerInformationState
                                           mbbMsisdn.text != '' &&
                                           referenceNumber2.text != '' &&
                                           free_extender != null ) {
-                                        showAlertDialogSaveData(
-                                            context,
-                                            'هل أنت متأكد من حفظ البيانات',
-                                            'Are you sure you want to save data');
+                                        preSubmitValidation_API();
+
                                       }
                                     } else {
                                       if (duplicateSecondReferenceNumber == false &&
                                           buildingCode.text != '' &&
-                                          img64Front != null &&
-                                          img64Back != null &&
+                                          // img64Front != null && // ?? Removed - Using eKYC ID OCR
+                                          // img64Back != null && // ?? Removed - Using eKYC ID OCR
                                           referenceNumber.text != '' &&
                                           clearSucssesFlag == 1 &&
                                           optionValue!=null &&
@@ -5591,10 +5851,8 @@ class _JordainianCustomerInformationState
                                           Password.text != '' &&
                                           mbbMsisdn.text != '' &&
                                           referenceNumber2.text != '' ) {
-                                        showAlertDialogSaveData(
-                                            context,
-                                            'هل أنت متأكد من حفظ البيانات',
-                                            'Are you sure you want to save data');
+                                        preSubmitValidation_API();
+
                                       }
                                     }
                                   }
@@ -5606,8 +5864,8 @@ class _JordainianCustomerInformationState
                                       area != null &&
                                       street != null &&
                                       building != null &&
-                                      img64Front != null &&
-                                      img64Back != null &&
+                                      // img64Front != null && // ?? Removed - Using eKYC ID OCR
+                                      // img64Back != null && // ?? Removed - Using eKYC ID OCR
                                       img64Location != null &&
                                       referenceNumber.text != '' &&
                                       clearSucssesFlag == 1 &&
@@ -5617,10 +5875,8 @@ class _JordainianCustomerInformationState
                                       UserName.text != '' &&
                                       Password.text != '' &&
                                       referenceNumber2.text != '') {
-                                    showAlertDialogSaveData(
-                                        context,
-                                        'هل أنت متأكد من حفظ البيانات',
-                                        'Are you sure you want to save data');
+                                    preSubmitValidation_API();
+
                                   }
                                 } else if (role != 'Subdealer' &&  role !='DealerAgent'&& role!="ZainTelesales") {
 
@@ -5628,8 +5884,8 @@ class _JordainianCustomerInformationState
                                     if (freeExtender == true) {
                                       if (duplicateSecondReferenceNumber == false &&
                                           buildingCode.text != '' &&
-                                          img64Front != null &&
-                                          img64Back != null &&
+                                          // img64Front != null && // ?? Removed - Using eKYC ID OCR
+                                          // img64Back != null && // ?? Removed - Using eKYC ID OCR
                                           referenceNumber.text != '' &&
                                           clearSucssesFlag == 1 &&
                                           optionValue!=null &&
@@ -5640,16 +5896,14 @@ class _JordainianCustomerInformationState
                                           referenceNumber2.text != '' &&
                                           extra_month != null &&
                                           free_extender != null ) {
-                                        showAlertDialogSaveData(
-                                            context,
-                                            'هل أنت متأكد من حفظ البيانات',
-                                            'Are you sure you want to save data');
+                                        preSubmitValidation_API();
+
                                       }
                                     } else if (freeExtender == false) {
                                       if (duplicateSecondReferenceNumber == false &&
                                           buildingCode.text != '' &&
-                                          img64Front != null &&
-                                          img64Back != null &&
+                                          // img64Front != null && // ?? Removed - Using eKYC ID OCR
+                                          // img64Back != null && // ?? Removed - Using eKYC ID OCR
                                           referenceNumber.text != '' &&
                                           clearSucssesFlag == 1 &&
                                           optionValue!=null &&
@@ -5659,10 +5913,8 @@ class _JordainianCustomerInformationState
                                           Password.text != '' &&
                                           referenceNumber2.text != '' &&
                                           extra_month != null ) {
-                                        showAlertDialogSaveData(
-                                            context,
-                                            'هل أنت متأكد من حفظ البيانات',
-                                            'Are you sure you want to save data');
+                                        preSubmitValidation_API();
+
                                       }
                                     }
                                   } else if (extraMonth == false) {
@@ -5670,8 +5922,8 @@ class _JordainianCustomerInformationState
                                     if (freeExtender == true) {
                                       if (duplicateSecondReferenceNumber == false &&
                                           buildingCode.text != '' &&
-                                          img64Front != null &&
-                                          img64Back != null &&
+                                          // img64Front != null && // ?? Removed - Using eKYC ID OCR
+                                          // img64Back != null && // ?? Removed - Using eKYC ID OCR
                                           referenceNumber.text != '' &&
                                           clearSucssesFlag == 1 &&
                                           optionValue!=null &&
@@ -5681,17 +5933,14 @@ class _JordainianCustomerInformationState
                                           Password.text != '' &&
                                           referenceNumber2.text != '' &&
                                           free_extender != null ) {
-                                        showAlertDialogSaveData(
-                                            context,
-                                            'هل أنت متأكد من حفظ البيانات',
-                                            'Are you sure you want to save data');
+                                        preSubmitValidation_API();
                                       }
                                     } else if (freeExtender == false) {
                                       print('hello2');
                                       if (duplicateSecondReferenceNumber == false &&
                                           buildingCode.text != '' &&
-                                          img64Front != null &&
-                                          img64Back != null &&
+                                          // img64Front != null && // ?? Removed - Using eKYC ID OCR
+                                          // img64Back != null && // ?? Removed - Using eKYC ID OCR
                                           referenceNumber.text != '' &&
                                           clearSucssesFlag == 1 &&
                                           optionValue!=null &&
@@ -5700,10 +5949,7 @@ class _JordainianCustomerInformationState
                                           UserName.text != '' &&
                                           Password.text != '' &&
                                           referenceNumber2.text != '' ) {
-                                        showAlertDialogSaveData(
-                                            context,
-                                            'هل أنت متأكد من حفظ البيانات',
-                                            'Are you sure you want to save data');
+                                        preSubmitValidation_API();
                                       }
                                     }
                                   }
@@ -5720,8 +5966,8 @@ class _JordainianCustomerInformationState
                                           area != null &&
                                           street != null &&
                                           building != null &&
-                                          img64Front != null &&
-                                          img64Back != null &&
+                                          // img64Front != null && // ?? Removed - Using eKYC ID OCR
+                                          // img64Back != null && // ?? Removed - Using eKYC ID OCR
                                           img64Location != null &&
                                           referenceNumber.text != '' &&
                                           clearSucssesFlag == 1 &&
@@ -5732,10 +5978,9 @@ class _JordainianCustomerInformationState
                                           referenceNumber2.text != '' &&
                                           extra_month != null &&
                                           free_extender != null ) {
-                                        showAlertDialogSaveData(
-                                            context,
-                                            'هل أنت متأكد من حفظ البيانات',
-                                            'Are you sure you want to save data');
+                                        preSubmitValidation_API();
+
+
                                       }
                                     } else if
                                     (freeExtender == false) {
@@ -5743,8 +5988,8 @@ class _JordainianCustomerInformationState
                                           area != null &&
                                           street != null &&
                                           building != null &&
-                                          img64Front != null &&
-                                          img64Back != null &&
+                                          // img64Front != null && // ?? Removed - Using eKYC ID OCR
+                                          // img64Back != null && // ?? Removed - Using eKYC ID OCR
                                           img64Location != null &&
                                           referenceNumber.text != '' &&
                                           clearSucssesFlag == 1 &&
@@ -5755,10 +6000,8 @@ class _JordainianCustomerInformationState
                                           mbbMsisdn.text != '' &&
                                           referenceNumber2.text != '' &&
                                           extra_month != null ) {
-                                        showAlertDialogSaveData(
-                                            context,
-                                            'هل أنت متأكد من حفظ البيانات',
-                                            'Are you sure you want to save data');
+                                        preSubmitValidation_API();
+
                                       }
                                     }
                                    } else if (extraMonth == false) {
@@ -5767,8 +6010,8 @@ class _JordainianCustomerInformationState
                                           area != null &&
                                           street != null &&
                                           building != null &&
-                                          img64Front != null &&
-                                          img64Back != null &&
+                                          // img64Front != null && // ?? Removed - Using eKYC ID OCR
+                                          // img64Back != null && // ?? Removed - Using eKYC ID OCR
                                           img64Location != null &&
                                           referenceNumber.text != '' &&
                                           clearSucssesFlag == 1 &&
@@ -5779,18 +6022,16 @@ class _JordainianCustomerInformationState
                                           mbbMsisdn.text != '' &&
                                           referenceNumber2.text != '' &&
                                           free_extender != null ) {
-                                        showAlertDialogSaveData(
-                                            context,
-                                            'هل أنت متأكد من حفظ البيانات',
-                                            'Are you sure you want to save data');
+                                        preSubmitValidation_API();
+
                                       }
                                     } else if (freeExtender == false) {
                                       if (duplicateSecondReferenceNumber == false &&
                                           area != null &&
                                           street != null &&
                                           building != null &&
-                                          img64Front != null &&
-                                          img64Back != null &&
+                                          // img64Front != null && // ?? Removed - Using eKYC ID OCR
+                                          // img64Back != null && // ?? Removed - Using eKYC ID OCR
                                           img64Location != null &&
                                           referenceNumber.text != '' &&
                                           clearSucssesFlag == 1 &&
@@ -5799,10 +6040,8 @@ class _JordainianCustomerInformationState
                                           Password.text != '' &&
                                           mbbMsisdn.text != '' &&
                                           referenceNumber2.text != '' ) {
-                                        showAlertDialogSaveData(
-                                            context,
-                                            'هل أنت متأكد من حفظ البيانات',
-                                            'Are you sure you want to save data');
+                                        preSubmitValidation_API();
+
                                       }
                                     }
                                   }
@@ -5811,8 +6050,8 @@ class _JordainianCustomerInformationState
                                     if (freeExtender == true) {
                                       if (duplicateSecondReferenceNumber == false &&
                                           buildingCode.text != '' &&
-                                          img64Front != null &&
-                                          img64Back != null &&
+                                          // img64Front != null && // ?? Removed - Using eKYC ID OCR
+                                          // img64Back != null && // ?? Removed - Using eKYC ID OCR
                                           referenceNumber.text != '' &&
                                           clearSucssesFlag == 1 &&
                                           documentExpiryDate.text != ''&&
@@ -5823,16 +6062,14 @@ class _JordainianCustomerInformationState
                                           referenceNumber2.text != '' &&
                                           extra_month != null &&
                                           free_extender != null ) {
-                                        showAlertDialogSaveData(
-                                            context,
-                                            'هل أنت متأكد من حفظ البيانات',
-                                            'Are you sure you want to save data');
+                                        preSubmitValidation_API();
+
                                       }
                                     } else if (freeExtender == false) {
                                       if (duplicateSecondReferenceNumber == false &&
                                           buildingCode.text != '' &&
-                                          img64Front != null &&
-                                          img64Back != null &&
+                                          // img64Front != null && // ?? Removed - Using eKYC ID OCR
+                                          // img64Back != null && // ?? Removed - Using eKYC ID OCR
                                           referenceNumber.text != '' &&
                                           clearSucssesFlag == 1 &&
                                           documentExpiryDate.text != ''&&
@@ -5842,18 +6079,16 @@ class _JordainianCustomerInformationState
                                           Password.text != '' &&
                                           referenceNumber2.text != '' &&
                                           extra_month != null ) {
-                                        showAlertDialogSaveData(
-                                            context,
-                                            'هل أنت متأكد من حفظ البيانات',
-                                            'Are you sure you want to save data');
+                                        preSubmitValidation_API();
+
                                       }
                                     }
                                   } else if (extraMonth == false) {
                                     if (freeExtender == true) {
                                       if (duplicateSecondReferenceNumber == false &&
                                           buildingCode.text != '' &&
-                                          img64Front != null &&
-                                          img64Back != null &&
+                                          // img64Front != null && // ?? Removed - Using eKYC ID OCR
+                                          // img64Back != null && // ?? Removed - Using eKYC ID OCR
                                           referenceNumber.text != '' &&
                                           clearSucssesFlag == 1 &&
                                           documentExpiryDate.text != ''&&
@@ -5862,16 +6097,14 @@ class _JordainianCustomerInformationState
                                           mbbMsisdn.text != '' &&
                                           referenceNumber2.text != '' &&
                                           free_extender != null ) {
-                                        showAlertDialogSaveData(
-                                            context,
-                                            'هل أنت متأكد من حفظ البيانات',
-                                            'Are you sure you want to save data');
+                                        preSubmitValidation_API();
+
                                       }
                                     } else {
                                       if (duplicateSecondReferenceNumber == false &&
                                           buildingCode.text != '' &&
-                                          img64Front != null &&
-                                          img64Back != null &&
+                                          // img64Front != null && // ?? Removed - Using eKYC ID OCR
+                                          // img64Back != null && // ?? Removed - Using eKYC ID OCR
                                           referenceNumber.text != '' &&
                                           clearSucssesFlag == 1 &&
                                           documentExpiryDate.text != ''&&
@@ -5880,10 +6113,8 @@ class _JordainianCustomerInformationState
                                           mbbMsisdn.text != '' &&
                                           referenceNumber2.text != ''
                                           ) {
-                                        showAlertDialogSaveData(
-                                            context,
-                                            'هل أنت متأكد من حفظ البيانات',
-                                            'Are you sure you want to save data');
+                                        preSubmitValidation_API();
+
                                       }
                                     }
                                   }
@@ -5895,8 +6126,8 @@ class _JordainianCustomerInformationState
                                       area != null &&
                                       street != null &&
                                       building != null &&
-                                      img64Front != null &&
-                                      img64Back != null &&
+                                      // img64Front != null && // ?? Removed - Using eKYC ID OCR
+                                      // img64Back != null && // ?? Removed - Using eKYC ID OCR
                                       img64Location != null &&
                                       referenceNumber.text != '' &&
                                       clearSucssesFlag == 1 &&
@@ -5905,10 +6136,8 @@ class _JordainianCustomerInformationState
                                       Password.text != '' &&
                                       referenceNumber2.text != ''
                                       ) {
-                                    showAlertDialogSaveData(
-                                        context,
-                                        'هل أنت متأكد من حفظ البيانات',
-                                        'Are you sure you want to save data');
+                                    preSubmitValidation_API();
+
                                   }else{
                                     showToast("Notifications_Form.notifications_required_fields".tr().toString(),
                                         context: context,
@@ -5921,8 +6150,8 @@ class _JordainianCustomerInformationState
                                     if (freeExtender == true) {
                                       if (duplicateSecondReferenceNumber == false &&
                                           buildingCode.text != '' &&
-                                          img64Front != null &&
-                                          img64Back != null &&
+                                          // img64Front != null && // ?? Removed - Using eKYC ID OCR
+                                          // img64Back != null && // ?? Removed - Using eKYC ID OCR
                                           referenceNumber.text != '' &&
                                           clearSucssesFlag == 1 &&
                                           documentExpiryDate.text != ''&&
@@ -5931,10 +6160,8 @@ class _JordainianCustomerInformationState
                                           referenceNumber2.text != '' &&
                                           extra_month != null &&
                                           free_extender != null ) {
-                                        showAlertDialogSaveData(
-                                            context,
-                                            'هل أنت متأكد من حفظ البيانات',
-                                            'Are you sure you want to save data');
+                                        preSubmitValidation_API();
+
                                       }else{
                                         showToast("Notifications_Form.notifications_required_fields".tr().toString(),
                                             context: context,
@@ -5944,8 +6171,8 @@ class _JordainianCustomerInformationState
                                     } else if (freeExtender == false) {
                                       if (duplicateSecondReferenceNumber == false &&
                                           buildingCode.text != '' &&
-                                          img64Front != null &&
-                                          img64Back != null &&
+                                          // img64Front != null && // ?? Removed - Using eKYC ID OCR
+                                          // img64Back != null && // ?? Removed - Using eKYC ID OCR
                                           referenceNumber.text != '' &&
                                           clearSucssesFlag == 1 &&
                                           documentExpiryDate.text != ''&&
@@ -5954,10 +6181,8 @@ class _JordainianCustomerInformationState
                                           referenceNumber2.text != '' &&
                                           extra_month != null
                                       ) {
-                                        showAlertDialogSaveData(
-                                            context,
-                                            'هل أنت متأكد من حفظ البيانات',
-                                            'Are you sure you want to save data');
+                                        preSubmitValidation_API();
+
                                       }else{
                                         showToast("Notifications_Form.notifications_required_fields".tr().toString(),
                                             context: context,
@@ -5970,8 +6195,8 @@ class _JordainianCustomerInformationState
                                     if (freeExtender == true) {
                                       if (duplicateSecondReferenceNumber == false &&
                                           buildingCode.text != '' &&
-                                          img64Front != null &&
-                                          img64Back != null &&
+                                          // img64Front != null && // ?? Removed - Using eKYC ID OCR
+                                          // img64Back != null && // ?? Removed - Using eKYC ID OCR
                                           referenceNumber.text != '' &&
                                           clearSucssesFlag == 1 &&
                                           documentExpiryDate.text != ''&&
@@ -5979,10 +6204,8 @@ class _JordainianCustomerInformationState
                                           Password.text != '' &&
                                           referenceNumber2.text != '' &&
                                           free_extender != null) {
-                                        showAlertDialogSaveData(
-                                            context,
-                                            'هل أنت متأكد من حفظ البيانات',
-                                            'Are you sure you want to save data');
+                                        preSubmitValidation_API();
+
                                       }else{
                                         showToast("Notifications_Form.notifications_required_fields".tr().toString(),
                                             context: context,
@@ -5993,18 +6216,16 @@ class _JordainianCustomerInformationState
                                       print('hello2');
                                       if (duplicateSecondReferenceNumber == false &&
                                           buildingCode.text != '' &&
-                                          img64Front != null &&
-                                          img64Back != null &&
+                                          // img64Front != null && // ?? Removed - Using eKYC ID OCR
+                                          // img64Back != null && // ?? Removed - Using eKYC ID OCR
                                           referenceNumber.text != '' &&
                                           clearSucssesFlag == 1 &&
                                           documentExpiryDate.text != ''&&
                                           UserName.text != '' &&
                                           Password.text != '' &&
                                           referenceNumber2.text != '') {
-                                        showAlertDialogSaveData(
-                                            context,
-                                            'هل أنت متأكد من حفظ البيانات',
-                                            'Are you sure you want to save data');
+                                        preSubmitValidation_API();
+
                                       }else{
                                         showToast("Notifications_Form.notifications_required_fields".tr().toString(),
                                             context: context,

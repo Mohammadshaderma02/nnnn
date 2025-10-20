@@ -21,6 +21,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:sales_app/Shared/BaseUrl.dart';
 import 'package:sales_app/Views/ReusableComponents/requiredText.dart';
+import 'package:sales_app/Views/HomeScreens/Subdealer/Menu/EKYC/GlobalVariables/global_variables.dart';
 import 'package:sales_app/blocs/CustomerService/SendOTPSCheckMSISDN/SendOTPSCheckMSISDN_bloc.dart';
 import 'package:sales_app/blocs/CustomerService/VerifyOTPSCheckMSISDN/VerifyOTPSCheckMSISDN_bloc.dart';
 import 'package:sales_app/blocs/CustomerService/VerifyOTPSCheckMSISDN/VerifyOTPSCheckMSISDN_events.dart';
@@ -45,9 +46,11 @@ import 'package:sales_app/blocs/PostPaid/PostpaidGenerateContract/postpaidGenera
 import 'package:sales_app/blocs/PostPaid/PostpaidGenerateContract/postpaidGenerateContract_events.dart';
 import 'package:sales_app/blocs/PostPaid/PostpaidGenerateContract/postpaidGenerateContract_state.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:camera/camera.dart';
 
 import '../../../../Corporate/Multi_Use_Components/RequiredField.dart';
 import 'GSM_contract_details.dart';
+import '../PostpaidIdentificationSelfRecording.dart';
 
 class JordainianCustomerInformation extends StatefulWidget {
   var role;
@@ -266,6 +269,7 @@ class _JordainianCustomerInformationState
 /*........................................................................................................*/
 
   ValidateKitCodeRqBloc validateKitCodeRqBloc;
+  bool isloading = false;
 
   void initState() {
     LookupON_BEHALF();
@@ -314,36 +318,7 @@ class _JordainianCustomerInformationState
     MSISDN.text = msisdn;
   }
 
-  final msg =
-  BlocBuilder<PostpaidGenerateContractBloc, PostpaidGenerateContractState>(
-      builder: (context, state) {
-        if (state is PostpaidGenerateContractLoadingState) {
-          return Center(
-              child: Container(
-                padding: EdgeInsets.only(bottom: 10, top: 10),
-                child: CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4f2565)),
-                ),
-              ));
-        } else {
-          return Container();
-        }
-      });
 
-  final msgScan = BlocBuilder<ValidateKitCodeRqBloc, ValidateKitCodeRqState>(
-      builder: (context, state) {
-        if (state is ValidateKitCodeRqScanLoadingState) {
-          return Center(
-              child: Container(
-                padding: EdgeInsets.only(bottom: 10),
-                child: CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4f2565)),
-                ),
-              ));
-        } else {
-          return Container();
-        }
-      });
   /*********************************************New 4-SEP-2023******************************************/
   commitmentlist_API() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
@@ -395,7 +370,7 @@ class _JordainianCustomerInformationState
     setState(() {
       claim = !claim;
     });
-    Update_Price();
+    //  Update_Price();
     print(claim);
   }
 
@@ -426,7 +401,8 @@ class _JordainianCustomerInformationState
     );
   }
 
-  void Update_Price() async {
+  //**----> This Function will be called before generet contract regardes the value of claim
+  /*void Update_Price() async {
     if (claim == true) {
       retrieve_updated_price_API();
     }
@@ -437,6 +413,9 @@ class _JordainianCustomerInformationState
       print(price);
       print(General_price);
     }
+  }*/
+  void Update_Price() async {
+    retrieve_updated_price_API();
   }
 
   /*................................................End New................................................*/
@@ -825,7 +804,7 @@ class _JordainianCustomerInformationState
       "PassportNo": null,
       "PackageCode": this.packageCode,
       "Msisdn": this.msisdn,
-      "isClaimed": true
+      "isClaimed": claim
     };
 
     String body = json.encode(test);
@@ -862,10 +841,18 @@ class _JordainianCustomerInformationState
       if (result["status"] == 0) {
         print(result["data"]);
         setState(() {
-          General_price = result["data"]["price"];
+          General_price = result["data"]["price"].toString();
         });
         print(price);
         print(General_price);
+
+        if (globalVars.SanadPassed){
+          _showPriceConfirmationDialog();
+        }else{
+          // Navigate to video recording screen instead of showing dialog
+          _navigateToVideoRecording();
+        }
+
       } else {}
 
       print('-------------------------------');
@@ -876,6 +863,63 @@ class _JordainianCustomerInformationState
     } else {}
   }
   /*****************************************************************************************************/
+  
+  // Navigate to video recording screen for eKYC
+  void _navigateToVideoRecording() async {
+    try {
+      // Get available cameras
+      final cameras = await availableCameras();
+      
+      // Get eKYC session UID and token from SharedPreferences or globalVars
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      String sessionUid = globalVars.sessionUid ?? '';
+      String ekycToken = globalVars.ekycTokenID ?? '';
+      
+      print('📹 Navigating to video recording screen...');
+      print('Session UID: $sessionUid');
+      print('MSISDN: $msisdn');
+      
+      // Navigate to shared video recording screen
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => PostpaidIdentificationSelfRecording(
+            cameras: cameras,
+            sessionUid: sessionUid,
+            ekycToken: ekycToken,
+            onVideoRecorded: (videoPath, videoHash) {
+              // Video successfully recorded and uploaded
+              print('✅ Video recorded successfully!');
+              print('Video Path: $videoPath');
+              print('Video Hash: $videoHash');
+              
+              // Close video recording screen
+              Navigator.pop(context);
+              
+              // Show confirmation dialog with price
+              _showPriceConfirmationDialog();
+            },
+          ),
+        ),
+      );
+    } catch (e) {
+      print('❌ Error navigating to video recording: $e');
+      showToast(
+        "Error navigating to video recording screen",
+        context: context,
+        animation: StyledToastAnimation.scale,
+        fullWidth: true,
+      );
+    }
+  }
+  
+  // Show price confirmation dialog after video recording
+  void _showPriceConfirmationDialog() {
+    showAlertDialogSaveData(
+        context,
+        ' المبلغ الكلي المطلوب هو  ${General_price}  دينار، هل انت متأكد؟  ',
+        'The total amount required is ${General_price}JD are you sure you want to continue?');
+  }
 
   void calculateImageSize(String path) {
     Completer<Size> completer = Completer();
@@ -1594,6 +1638,7 @@ class _JordainianCustomerInformationState
         Navigator.pop(context, true);
         setState(() {
           isDisabled = true;
+          isloading = true;
         });
         postpaidGenerateContractBloc.add(PostpaidGenerateContractButtonPressed(
             marketType: marketType,
@@ -1659,7 +1704,9 @@ class _JordainianCustomerInformationState
   }
 
   SendOtp() async {
-    print('called');
+    setState(() {
+      isloading = true;
+    });
     print(referenceNumber.text);
     print(msisdn);
     SharedPreferences prefs = await SharedPreferences.getInstance();
@@ -1678,8 +1725,12 @@ class _JordainianCustomerInformationState
     print(statusCode);
     if (statusCode == 200) {
       var result = json.decode(res.body);
+      setState(() {
+        isloading = false;
+      });
       print(result);
       if (result['status'] == 0) {
+
         showDialog(
           barrierDismissible: false,
           context: context,
@@ -1741,7 +1792,7 @@ class _JordainianCustomerInformationState
                               ),
                             ),
                           ),
-                          msgTwo
+
                         ]))
               ]),
             ),
@@ -1766,11 +1817,13 @@ class _JordainianCustomerInformationState
                   if (state is VerifyOTPSCheckMSISDNLoadingState) {
                     setState(() {
                       showCircular = true;
+                      isloading = true;
                     });
                   }
                   if (state is VerifyOTPSCheckMSISDNErrorState) {
                     setState(() {
                       showCircular = false;
+                      isloading = false;
                     });
                     setState(() {
                       otp.text = '';
@@ -1782,6 +1835,7 @@ class _JordainianCustomerInformationState
                   if (state is VerifyOTPSCheckMSISDNSuccessState) {
                     setState(() {
                       showCircular = false;
+                      isloading = false;
                     });
                     //Navigator.of(context).pop();
                     setState(() {
@@ -1868,6 +1922,11 @@ class _JordainianCustomerInformationState
           },
         );
       }*/
+    }
+    else{
+      setState(() {
+        isloading = false;
+      });
     }
   }
 
@@ -2117,6 +2176,141 @@ class _JordainianCustomerInformationState
   }
 
   /************************************************************************************************************************************/
+  // ✅ Disabled field for Full Name from EKYC
+  Widget buildFullName() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        RichText(
+          text: TextSpan(
+            text: EasyLocalization.of(context).locale == Locale("en", "US")
+                ? "Full Name"
+                : "الاسم الكامل",
+            style: TextStyle(
+              color: Color(0xff11120e),
+              fontSize: 14,
+              fontWeight: FontWeight.normal,
+            ),
+          ),
+        ),
+        SizedBox(height: 10),
+        Container(
+          alignment: Alignment.centerLeft,
+          height: 58,
+          child: TextField(
+            controller: TextEditingController(text: globalVars.fullNameAr ?? ''),
+            enabled: false,
+            keyboardType: TextInputType.name,
+            style: TextStyle(color: Color(0xFF5A6F84)),
+            decoration: InputDecoration(
+              border: OutlineInputBorder(
+                  borderSide: BorderSide(width: 1, color: Color(0xFFD1D7E0))),
+              disabledBorder: OutlineInputBorder(
+                  borderSide: BorderSide(width: 1, color: Color(0xFFD1D7E0))),
+              focusedBorder: OutlineInputBorder(
+                borderSide:
+                const BorderSide(color: Color(0xFF4f2565), width: 1.0),
+              ),
+              fillColor: Color(0xFFEBECF1),
+              filled: true,
+              contentPadding: EdgeInsets.all(16),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ✅ Disabled field for Birthdate from EKYC
+  Widget buildBirthdate() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        RichText(
+          text: TextSpan(
+            text: EasyLocalization.of(context).locale == Locale("en", "US")
+                ? "Date of Birth"
+                : "تاريخ الميلاد",
+            style: TextStyle(
+              color: Color(0xff11120e),
+              fontSize: 14,
+              fontWeight: FontWeight.normal,
+            ),
+          ),
+        ),
+        SizedBox(height: 10),
+        Container(
+          alignment: Alignment.centerLeft,
+          height: 58,
+          child: TextField(
+            controller: TextEditingController(text: globalVars.birthdate ?? ''),
+            enabled: false,
+            keyboardType: TextInputType.datetime,
+            style: TextStyle(color: Color(0xFF5A6F84)),
+            decoration: InputDecoration(
+              border: OutlineInputBorder(
+                  borderSide: BorderSide(width: 1, color: Color(0xFFD1D7E0))),
+              disabledBorder: OutlineInputBorder(
+                  borderSide: BorderSide(width: 1, color: Color(0xFFD1D7E0))),
+              focusedBorder: OutlineInputBorder(
+                borderSide:
+                const BorderSide(color: Color(0xFF4f2565), width: 1.0),
+              ),
+              fillColor: Color(0xFFEBECF1),
+              filled: true,
+              contentPadding: EdgeInsets.all(16),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ✅ Disabled field for Document Expiry Date from EKYC
+  Widget buildDocumentExpiryDateFromEKYC() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        RichText(
+          text: TextSpan(
+            text: EasyLocalization.of(context).locale == Locale("en", "US")
+                ? "Document Expiry Date"
+                : "تاريخ انتهاء الوثيقة",
+            style: TextStyle(
+              color: Color(0xff11120e),
+              fontSize: 14,
+              fontWeight: FontWeight.normal,
+            ),
+          ),
+        ),
+        SizedBox(height: 10),
+        Container(
+          alignment: Alignment.centerLeft,
+          height: 58,
+          child: TextField(
+            controller: TextEditingController(text: globalVars.expirayDate ?? ''),
+            enabled: false,
+            keyboardType: TextInputType.datetime,
+            style: TextStyle(color: Color(0xFF5A6F84)),
+            decoration: InputDecoration(
+              border: OutlineInputBorder(
+                  borderSide: BorderSide(width: 1, color: Color(0xFFD1D7E0))),
+              disabledBorder: OutlineInputBorder(
+                  borderSide: BorderSide(width: 1, color: Color(0xFFD1D7E0))),
+              focusedBorder: OutlineInputBorder(
+                borderSide:
+                const BorderSide(color: Color(0xFF4f2565), width: 1.0),
+              ),
+              fillColor: Color(0xFFEBECF1),
+              filled: true,
+              contentPadding: EdgeInsets.all(16),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget buildNationalNumber() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -2412,7 +2606,7 @@ class _JordainianCustomerInformationState
                       showDatePicker(
                         context: context,
                         firstDate: DateTime.now(),
-                       // firstDate: DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day - 60),
+                        // firstDate: DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day - 60),
                         initialDate: DateTime.now(),
                         lastDate:DateTime(DateTime.now().year+20,
                         ),
@@ -3210,18 +3404,17 @@ class _JordainianCustomerInformationState
         PostpaidGenerateContractState>(
       listener: (context, state) async {
         if (state is PostpaidGenerateContractErrorState) {
-          print("hayaaaaaaaa");
-          print(state.englishMessage);
-          print("hayaaaaaaaa");
           showAlertDialog(context, state.arabicMessage, state.englishMessage);
           setState(() {
             isDisabled = false;
+            isloading = false;
           });
           //unReservedLineBloc.add(UnPressReservedLineEvent(kitCode:data['kitCode'].toString()));
         }
         if (state is PostpaidGenerateContractSuccessState) {
           setState(() {
             isDisabled = false;
+            isloading = false;
           });
           var dir = await getApplicationDocumentsDirectory();
           File file = new File("${dir.path}/data.pdf");
@@ -3241,317 +3434,265 @@ class _JordainianCustomerInformationState
             context,
             MaterialPageRoute(
               builder: (context) => ContractDetails(
-                Permessions: Permessions,
-                role: role,
-                outDoorUserName: outDoorUserName,
-                FileEPath: file.path,
-                isJordainian: isJordainian,
-                marketType: marketType,
-                packageCode: packageCode,
-                msisdn: msisdn,
-                nationalNumber: nationalNumber,
-                passportNumber: null,
-                userName: null,
-                password: null,
-                firstName: null,
-                secondName: null,
-                lastName: null,
-                birthdate: null,
-                referenceNumber: referenceNumber.text,
-                referenceNumber2: null,
-                isMigrate: false,
-                mbbMsisdn: null,
-                frontImg: img64Front,
-                backImg: img64Back,
-                passprotImg: null,
-                locationImg: img64Contract,
-                buildingCode: null,
-                extraFreeMonths: null,
-                extraExtender: null,
-                simCard: sendOtp == true ? simCard.text : null,
-                contractImageBase64: img64Contract,
-                note: selectedCommitment,
-                militaryID: MilitaryNumber.text,
-                scheduledDate: scheduledDate.text,
-                isClaimed: claim,
-                onBehalfUser:
-                selectedBEHALF_key == null ? "" : selectedBEHALF_key,
-                resellerID: selectedReseller_key == null ? "" : selectedReseller_key,
-                documentExpiryDate:documentExpiryDate.text
+                  Permessions: Permessions,
+                  role: role,
+                  outDoorUserName: outDoorUserName,
+                  FileEPath: file.path,
+                  isJordainian: isJordainian,
+                  marketType: marketType,
+                  packageCode: packageCode,
+                  msisdn: msisdn,
+                  nationalNumber: nationalNumber,
+                  passportNumber: null,
+                  userName: null,
+                  password: null,
+                  firstName: null,
+                  secondName: null,
+                  lastName: null,
+                  birthdate: null,
+                  referenceNumber: referenceNumber.text,
+                  referenceNumber2: null,
+                  isMigrate: false,
+                  mbbMsisdn: null,
+                  frontImg: img64Front,
+                  backImg: img64Back,
+                  passprotImg: null,
+                  locationImg: img64Contract,
+                  buildingCode: null,
+                  extraFreeMonths: null,
+                  extraExtender: null,
+                  simCard: sendOtp == true ? simCard.text : null,
+                  contractImageBase64: img64Contract,
+                  note: selectedCommitment,
+                  militaryID: MilitaryNumber.text,
+                  scheduledDate: scheduledDate.text,
+                  isClaimed: claim,
+                  onBehalfUser:
+                  selectedBEHALF_key == null ? "" : selectedBEHALF_key,
+                  resellerID: selectedReseller_key == null ? "" : selectedReseller_key,
+                  documentExpiryDate:documentExpiryDate.text
               ),
             ),
           );
         }
       },
       child: GestureDetector(
-        onTap: () => FocusScope.of(context).unfocus(),
-        child: Scaffold(
-            appBar: AppBar(
-              leading: IconButton(
-                icon: Icon(Icons.arrow_back),
-                //tooltip: 'Menu Icon',
-                onPressed: () {
-                  Navigator.pop(
-                    context,
-                  );
-                },
-              ),
-              centerTitle: false,
-              title: Text(
-                "Postpaid.CustomerInformation".tr().toString(),
-              ),
-              backgroundColor: Color(0xFF4f2565),
-            ),
-            backgroundColor: Color(0xFFEBECF1),
-            body: ListView(padding: EdgeInsets.only(top: 8), children: <Widget>[
-              Container(
-                  color: Color(0xFFEBECF1),
-                  padding:
-                  EdgeInsets.only(left: 16, right: 10, top: 8, bottom: 15),
-                  child: Text(
-                    "Profile_Form.personal_information".tr().toString(),
-                    style: TextStyle(
-                        color: Color(0xFF11120e),
-                        letterSpacing: 0,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold),
-                  )),
-              Container(
-                color: Colors.white,
-                padding: EdgeInsets.only(left: 15, right: 15),
-                child: Column(
-                  children: <Widget>[
+          onTap: () => FocusScope.of(context).unfocus(),
+          child: Stack(
+            children: [
+              Scaffold(
+                  appBar: AppBar(
+                    leading: IconButton(
+                      icon: Icon(Icons.arrow_back),
+                      //tooltip: 'Menu Icon',
+                      onPressed: () {
+                        Navigator.pop(
+                          context,
+                        );
+                      },
+                    ),
+                    centerTitle: false,
+                    title: Text(
+                      "Postpaid.CustomerInformation".tr().toString(),
+                    ),
+                    backgroundColor: Color(0xFF4f2565),
+                  ),
+                  backgroundColor: Color(0xFFEBECF1),
+                  body: ListView(padding: EdgeInsets.only(top: 8), children: <Widget>[
                     Container(
-                      alignment: Alignment.centerLeft,
+                        color: Color(0xFFEBECF1),
+                        padding:
+                        EdgeInsets.only(left: 16, right: 10, top: 8, bottom: 15),
+                        child: Text(
+                          "Profile_Form.personal_information".tr().toString(),
+                          style: TextStyle(
+                              color: Color(0xFF11120e),
+                              letterSpacing: 0,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold),
+                        )),
+                    Container(
+                      color: Colors.white,
+                      padding: EdgeInsets.only(left: 15, right: 15),
                       child: Column(
                         children: <Widget>[
-                          SizedBox(
-                            height: 10,
-                          ),
-                          isArmy == true ? buildMilitaryNumber() : Container(),
-                          emptyMilitaryNumber == true
-                              ? ReusableRequiredText(
-                              text: "Postpaid.this_feild_is_required"
-                                  .tr()
-                                  .toString())
-                              : Container(),
-                          SizedBox(height: 10),
-                          showCommitmentList == true
-                              ? buildCommitmentlist()
-                              : Container(),
+                          Container(
+                            alignment: Alignment.centerLeft,
+                            child: Column(
+                              children: <Widget>[
+                                SizedBox(
+                                  height: 10,
+                                ),
+                                isArmy == true ? buildMilitaryNumber() : Container(),
+                                emptyMilitaryNumber == true
+                                    ? ReusableRequiredText(
+                                    text: "Postpaid.this_feild_is_required"
+                                        .tr()
+                                        .toString())
+                                    : Container(),
+                                SizedBox(height: 10),
+                                showCommitmentList == true
+                                    ? buildCommitmentlist()
+                                    : Container(),
 
-                          SizedBox(height: 10),
-                          buildNationalNumber(),
-                          SizedBox(height: 10),
-                          buildMSISDNNumber(),
-                          emptyMSISDN == true
-                              ? ReusableRequiredText(
-                              text: "Postpaid.this_feild_is_required"
-                                  .tr()
-                                  .toString())
-                              : Container(),
-                          SizedBox(height: 10),
+                                // ✅ EKYC captured fields (disabled)
+                                SizedBox(height: 10),
+                                buildFullName(),
+                                SizedBox(height: 10),
+                                buildBirthdate(),
+                                SizedBox(height: 10),
+                                buildDocumentExpiryDateFromEKYC(),
+                                
+                                SizedBox(height: 10),
+                                buildNationalNumber(),
+                                SizedBox(height: 10),
+                                buildMSISDNNumber(),
+                                emptyMSISDN == true
+                                    ? ReusableRequiredText(
+                                    text: "Postpaid.this_feild_is_required"
+                                        .tr()
+                                        .toString())
+                                    : Container(),
+                                SizedBox(height: 10),
 
-                          buildReferenceNumber(),
-                          emptyReferenceNumber == true
-                              ? ReusableRequiredText(
-                              text:
-                              "Jordan_Nationality.this_feild_is_required"
-                                  .tr()
-                                  .toString())
-                              : Container(),
-                          errorReferenceNumber == true
-                              ? ReusableRequiredText(
-                              text: EasyLocalization.of(context).locale ==
-                                  Locale("en", "US")
-                                  ? "Your MSISDN should be 10 digit and valid"
-                                  : "رقم الهاتف يجب أن يتكون من 10 خانات وصالح ")
-                              : Container(),
+                                buildReferenceNumber(),
+                                emptyReferenceNumber == true
+                                    ? ReusableRequiredText(
+                                    text:
+                                    "Jordan_Nationality.this_feild_is_required"
+                                        .tr()
+                                        .toString())
+                                    : Container(),
+                                errorReferenceNumber == true
+                                    ? ReusableRequiredText(
+                                    text: EasyLocalization.of(context).locale ==
+                                        Locale("en", "US")
+                                        ? "Your MSISDN should be 10 digit and valid"
+                                        : "رقم الهاتف يجب أن يتكون من 10 خانات وصالح ")
+                                    : Container(),
 
-                          successFlag == true
-                              ? Container(
-                              padding: EdgeInsets.only(top: 2),
-                              alignment:
-                              EasyLocalization.of(context).locale ==
-                                  Locale("en", "US")
-                                  ? Alignment.bottomLeft
-                                  : Alignment.bottomRight,
-                              child: RichText(
-                                text: TextSpan(
-                                  children: [
-                                    WidgetSpan(
-                                      child: new Icon(
-                                        Icons.assignment_turned_in,
-                                        size: 14,
-                                        color: Color(0xFF4BB543),
+                                successFlag == true
+                                    ? Container(
+                                    padding: EdgeInsets.only(top: 2),
+                                    alignment:
+                                    EasyLocalization.of(context).locale ==
+                                        Locale("en", "US")
+                                        ? Alignment.bottomLeft
+                                        : Alignment.bottomRight,
+                                    child: RichText(
+                                      text: TextSpan(
+                                        children: [
+                                          WidgetSpan(
+                                            child: new Icon(
+                                              Icons.assignment_turned_in,
+                                              size: 14,
+                                              color: Color(0xFF4BB543),
+                                            ),
+                                          ),
+                                          TextSpan(
+                                            text:
+                                            "Jordan_Nationality.Verify_Number_Successfully"
+                                                .tr()
+                                                .toString(),
+                                            style: TextStyle(
+                                              color: Color(0xFF4BB543),
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.normal,
+                                            ),
+                                          ),
+                                        ],
                                       ),
+                                    ))
+                                    : Container(),
+                                /********************************************** New for Darak Flow 23-May-2023 *****************************************/
+                                // show_SendOTP && Permessions.contains('05.02.03.02.01')== true
+
+                                show_SendOTP == true && showSimCard == false
+                                    ? Container(
+                                  alignment:
+                                  EasyLocalization.of(context).locale ==
+                                      Locale("en", "US")
+                                      ? Alignment.bottomRight
+                                      : Alignment.bottomLeft,
+                                  child: TextButton(
+                                    style: TextButton.styleFrom(
+                                      primary: Color(0xFF4f2565),
                                     ),
-                                    TextSpan(
-                                      text:
-                                      "Jordan_Nationality.Verify_Number_Successfully"
+                                    onPressed: () {
+                                      SendOtp();
+                                    },
+                                    child: Text(
+                                      "Jordan_Nationality.send_verification_code"
                                           .tr()
                                           .toString(),
-                                      style: TextStyle(
-                                        color: Color(0xFF4BB543),
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.normal,
-                                      ),
                                     ),
-                                  ],
+                                  ),
+                                )
+                                    : Container(),
+                                SizedBox(
+                                  height: 10,
                                 ),
-                              ))
-                              : Container(),
-                          /********************************************** New for Darak Flow 23-May-2023 *****************************************/
-                          // show_SendOTP && Permessions.contains('05.02.03.02.01')== true
+                                /********************************************** End Darak Flow 23-May-2023 *****************************************/
+                                /*****************************************New 13-Sep-2023**********************************************************/
+                                /****************************************************************************************************************/
+                                marketType == 'PRETOPOST'
+                                    ? buildScheduledDate()
+                                    : Container(),
+                                /******************************************New 20-9-2023 *************************************************************/
+                                role == "ZainTelesales" && on_BEHALF == true
+                                    ? Container(
+                                  color: Colors.white,
+                                  padding: EdgeInsets.only(
+                                      left: 0, right: 0, top: 12, bottom: 10),
+                                  child: buildSelect_BEHALF(),
+                                )
+                                    : Container(),
 
-                          show_SendOTP == true && showSimCard == false
-                              ? Container(
-                            alignment:
-                            EasyLocalization.of(context).locale ==
-                                Locale("en", "US")
-                                ? Alignment.bottomRight
-                                : Alignment.bottomLeft,
-                            child: TextButton(
-                              style: TextButton.styleFrom(
-                                primary: Color(0xFF4f2565),
-                              ),
-                              onPressed: () {
-                                SendOtp();
-                              },
-                              child: Text(
-                                "Jordan_Nationality.send_verification_code"
-                                    .tr()
-                                    .toString(),
-                              ),
+                                role == "ZainTelesales" && reseller == true
+                                    ? Container(
+                                  color: Colors.white,
+                                  padding: EdgeInsets.only(
+                                      left: 0, right: 0, top: 12, bottom: 10),
+                                  child: buildSelect_Reseller(),
+                                )
+                                    : Container(),
+
+                                role == "ZainTelesales"
+                                    ? Container(
+                                    color: Colors.white,
+                                    padding: EdgeInsets.only(
+                                        left: 0, right: 0, bottom: 5, top: 10),
+                                    child: buildON_Reseller())
+                                    : Container(),
+
+                                role == "ZainTelesales"
+                                    ? Container(
+                                    color: Colors.white,
+                                    padding: EdgeInsets.only(
+                                        left: 0, right: 0, bottom: 5, top: 10),
+                                    child: buildON_BEHALF())
+                                    : Container(),
+                                /*************************************************************** End *****************************************************/
+                                /*****************************************New 13-Sep-2023**********************************************************/
+                                Container(
+                                    color: Colors.white,
+                                    padding: EdgeInsets.only(
+                                        left: 0, right: 0, bottom: 5, top: 10),
+                                    child: buildON_CLAIM()),
+                                /*********************************************************************************************************************************/
+
+                                // reference number 2
+                              ],
                             ),
-                          )
-                              : Container(),
+                          ),
                           SizedBox(
                             height: 10,
-                          ),
-                          /*.............................Document Expiry Date 12/6/2024.......................*/
-                          buildDocumentExpiryDate(),
-                          /*..................................................................................*/
-                          SizedBox(
-                            height: 10,
-                          ),
-                          /********************************************** End Darak Flow 23-May-2023 *****************************************/
-                          /*****************************************New 13-Sep-2023**********************************************************/
-                          /****************************************************************************************************************/
-                          marketType == 'PRETOPOST'
-                              ? buildScheduledDate()
-                              : Container(),
-                          /******************************************New 20-9-2023 *************************************************************/
-                          role == "ZainTelesales" && on_BEHALF == true
-                              ? Container(
-                            color: Colors.white,
-                            padding: EdgeInsets.only(
-                                left: 0, right: 0, top: 12, bottom: 10),
-                            child: buildSelect_BEHALF(),
                           )
-                              : Container(),
-
-                          role == "ZainTelesales" && reseller == true
-                              ? Container(
-                            color: Colors.white,
-                            padding: EdgeInsets.only(
-                                left: 0, right: 0, top: 12, bottom: 10),
-                            child: buildSelect_Reseller(),
-                          )
-                              : Container(),
-
-                          role == "ZainTelesales"
-                              ? Container(
-                              color: Colors.white,
-                              padding: EdgeInsets.only(
-                                  left: 0, right: 0, bottom: 5, top: 10),
-                              child: buildON_Reseller())
-                              : Container(),
-
-                          role == "ZainTelesales"
-                              ? Container(
-                              color: Colors.white,
-                              padding: EdgeInsets.only(
-                                  left: 0, right: 0, bottom: 5, top: 10),
-                              child: buildON_BEHALF())
-                              : Container(),
-                          /*************************************************************** End *****************************************************/
-                          /*****************************************New 13-Sep-2023**********************************************************/
-                          Container(
-                              color: Colors.white,
-                              padding: EdgeInsets.only(
-                                  left: 0, right: 0, bottom: 5, top: 10),
-                              child: buildON_CLAIM()),
-                          /*********************************************************************************************************************************/
-
-                          // reference number 2
                         ],
                       ),
                     ),
-                    SizedBox(
-                      height: 10,
-                    )
-                  ],
-                ),
-              ),
-              Container(
-                height: 60,
-                child: ListTile(
-                  leading: Container(
-                    width: 280,
-                    child: Text(
-                      "Jordan_Nationality.id_photo".tr().toString() +
-                          " " +
-                          "Postpaid.frontـside".tr().toString(),
-                      style: TextStyle(
-                        color: Color(0xFF11120e),
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                  trailing: _loadIdFront == true
-                      ? Container(
-                    child: IconButton(
-                        icon: Icon(Icons.delete),
-                        color: Color(0xff0070c9),
-                        onPressed: () => {clearImageIDFront()}),
-                  )
-                      : null,
-                ),
-              ),
-              Container(child: buildImageIdFront()),
-              Container(
-                height: 60,
-                padding: EdgeInsets.only(top: 8),
-                child: ListTile(
-                  leading: Container(
-                    width: 280,
-                    child: Text(
-                      "Jordan_Nationality.id_photo".tr().toString() +
-                          " " +
-                          "Postpaid.backـside".tr().toString(),
-                      style: TextStyle(
-                        color: Color(0xFF11120e),
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                  trailing: _loadIdBack == true
-                      ? Container(
-                    child: IconButton(
-                        icon: Icon(Icons.delete),
-                        color: Color(0xff0070c9),
-                        onPressed: () => {clearImageIDBack()}),
-                  )
-                      : null,
-                ),
-              ),
-              Container(
-                child: buildImageIdBack(),
-              ),
-              Permessions.contains('05.02.03.01') == true
+                    // ✅ Removed image capture sections (buildImageIdFront and buildImageIdBack) - images now captured in GSM_NationalityList
+                    /* Permessions.contains('05.02.03.01') == true
                   ? Container(
                 height: 60,
                 padding: EdgeInsets.only(top: 8),
@@ -3582,272 +3723,255 @@ class _JordainianCustomerInformationState
                   ? Container(
                 child: buildImageContract(),
               )
-                  : Container(),
-              showSimCard == true || marketType == 'GSM'
-                  ? Column(
-                children: [
-                  Container(
-                    height: 60,
-                    padding: EdgeInsets.only(top: 8),
-                    child: ListTile(
-                      leading: Container(
-                        width: 280,
-                        child: Text(
-                          "Postpaid.simCard_info".tr().toString(),
-                          style: TextStyle(
-                            color: Color(0xFF11120e),
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
+                  : Container(),*/
+                    showSimCard == true || marketType == 'GSM'
+                        ? Column(
+                      children: [
+                        Container(
+                          height: 60,
+                          padding: EdgeInsets.only(top: 8),
+                          child: ListTile(
+                            leading: Container(
+                              width: 280,
+                              child: Text(
+                                "Postpaid.simCard_info".tr().toString(),
+                                style: TextStyle(
+                                  color: Color(0xFF11120e),
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
                           ),
                         ),
-                      ),
-                    ),
-                  ),
-                  Container(
-                    color: Colors.white,
-                    padding:
-                    EdgeInsets.only(left: 15, right: 15, bottom: 10),
-                    child: Column(
-                      children: <Widget>[
                         Container(
+                          color: Colors.white,
+                          padding:
+                          EdgeInsets.only(left: 15, right: 15, bottom: 10),
                           child: Column(
                             children: <Widget>[
-                              Image(
-                                  image: AssetImage(
-                                      'assets/images/barcode-scan.png'),
-                                  width: 160,
-                                  height: 160),
-                              TextButton(
-                                child: Text(
-                                  "Menu_Form.ScanBarcode".tr().toString(),
-                                  style: TextStyle(
-                                      color: Colors.black,
-                                      letterSpacing: 0,
-                                      fontSize: 21,
-                                      fontWeight: FontWeight.bold),
+                              Container(
+                                child: Column(
+                                  children: <Widget>[
+                                    Image(
+                                        image: AssetImage(
+                                            'assets/images/barcode-scan.png'),
+                                        width: 160,
+                                        height: 160),
+                                    TextButton(
+                                      child: Text(
+                                        "Menu_Form.ScanBarcode".tr().toString(),
+                                        style: TextStyle(
+                                            color: Colors.black,
+                                            letterSpacing: 0,
+                                            fontSize: 21,
+                                            fontWeight: FontWeight.bold),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Container(
+                                height: 48,
+                                width: 420,
+                                margin: EdgeInsets.symmetric(horizontal: 10),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(50),
+                                  color: Color(0xFF4f2565),
+                                ),
+                                child: TextButton(
+                                  style: TextButton.styleFrom(
+                                    backgroundColor: Color(0xFF4f2565),
+                                    shape: const BeveledRectangleBorder(
+                                        borderRadius: BorderRadius.all(
+                                            Radius.circular(24))),
+                                  ),
+                                  onPressed: () => _ScanKitCode(),
+                                  child: Text(
+                                    "Menu_Form.StartScan".tr().toString(),
+                                    style: TextStyle(
+                                        color: Colors.white,
+                                        letterSpacing: 0,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold),
+                                  ),
                                 ),
                               ),
                             ],
                           ),
                         ),
-                        Container(
-                          height: 48,
+                        marketType == 'GSM' || showSimCard == true
+                            ? Container(
+                          height: 55,
                           width: 420,
-                          margin: EdgeInsets.symmetric(horizontal: 10),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(50),
-                            color: Color(0xFF4f2565),
-                          ),
-                          child: TextButton(
-                            style: TextButton.styleFrom(
-                              backgroundColor: Color(0xFF4f2565),
-                              shape: const BeveledRectangleBorder(
-                                  borderRadius: BorderRadius.all(
-                                      Radius.circular(24))),
+                          margin: const EdgeInsets.only(
+                              left: 20.0, right: 20.0),
+                          decoration: BoxDecoration(),
+                          child: Row(children: <Widget>[
+                            Expanded(
+                              child: new Container(
+                                  margin: const EdgeInsets.only(
+                                      left: 10.0, right: 20.0),
+                                  child: Divider(
+                                    color: Colors.black,
+                                    height: 36,
+                                  )),
                             ),
-                            onPressed: () => _ScanKitCode(),
-                            child: Text(
-                              "Menu_Form.StartScan".tr().toString(),
-                              style: TextStyle(
-                                  color: Colors.white,
-                                  letterSpacing: 0,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold),
+                            Text(
+                              "Menu_Form.OR".tr().toString(),
                             ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  marketType == 'GSM' || showSimCard == true
-                      ? Container(
-                    height: 55,
-                    width: 420,
-                    margin: const EdgeInsets.only(
-                        left: 20.0, right: 20.0),
-                    decoration: BoxDecoration(),
-                    child: Row(children: <Widget>[
-                      Expanded(
-                        child: new Container(
-                            margin: const EdgeInsets.only(
-                                left: 10.0, right: 20.0),
-                            child: Divider(
-                              color: Colors.black,
-                              height: 36,
-                            )),
-                      ),
-                      Text(
-                        "Menu_Form.OR".tr().toString(),
-                      ),
-                      Expanded(
-                        child: new Container(
-                            margin: const EdgeInsets.only(
-                                left: 20.0, right: 10.0),
-                            child: Divider(
-                              color: Colors.black,
-                              height: 36,
-                            )),
-                      ),
-                    ]),
-                  )
-                      : Container(),
-                  marketType == 'GSM' ||
-                      simCard.text != '' ||
-                      showSimCard == true
-                      ? Container(
-                    color: Colors.white,
-                    padding: EdgeInsets.only(
-                        left: 15, right: 15, top: 10),
-                    child: Column(
-                      children: <Widget>[
-                        Container(
-                          alignment: Alignment.centerLeft,
+                            Expanded(
+                              child: new Container(
+                                  margin: const EdgeInsets.only(
+                                      left: 20.0, right: 10.0),
+                                  child: Divider(
+                                    color: Colors.black,
+                                    height: 36,
+                                  )),
+                            ),
+                          ]),
+                        )
+                            : Container(),
+                        marketType == 'GSM' ||
+                            simCard.text != '' ||
+                            showSimCard == true
+                            ? Container(
+                          color: Colors.white,
+                          padding: EdgeInsets.only(
+                              left: 15, right: 15, top: 10),
                           child: Column(
                             children: <Widget>[
+                              Container(
+                                alignment: Alignment.centerLeft,
+                                child: Column(
+                                  children: <Widget>[
+                                    SizedBox(height: 10),
+                                    _SIMCARD(),
+                                    emptySimCard == true
+                                        ? ReusableRequiredText(
+                                        text:
+                                        "Menu_Form.msisdn_required"
+                                            .tr()
+                                            .toString())
+                                        : Container(),
+                                    errorSimCard == true
+                                        ? ReusableRequiredText(
+                                        text: EasyLocalization.of(
+                                            context)
+                                            .locale ==
+                                            Locale("en", "US")
+                                            ? "Your ICCID shoud be 20 digit"
+                                            : "رقم ICCID يجب أن يتكون من 20 خانات")
+                                        : Container(),
+                                  ],
+                                ),
+                              ),
                               SizedBox(height: 10),
-                              _SIMCARD(),
-                              emptySimCard == true
-                                  ? ReusableRequiredText(
-                                  text:
-                                  "Menu_Form.msisdn_required"
-                                      .tr()
-                                      .toString())
-                                  : Container(),
-                              errorSimCard == true
-                                  ? ReusableRequiredText(
-                                  text: EasyLocalization.of(
-                                      context)
-                                      .locale ==
-                                      Locale("en", "US")
-                                      ? "Your ICCID shoud be 20 digit"
-                                      : "رقم ICCID يجب أن يتكون من 20 خانات")
-                                  : Container(),
                             ],
                           ),
-                        ),
-                        SizedBox(height: 10),
+                        )
+                            : Container(),
                       ],
+                    )
+                        : Container(),
+
+                    SizedBox(
+                      height: 20,
                     ),
-                  )
-                      : Container(),
-                ],
-              )
-                  : Container(),
-              msg,
-              SizedBox(
-                height: 20,
-              ),
-              Container(
-                  height: 48,
-                  width: 300,
-                  margin: EdgeInsets.symmetric(horizontal: 20),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(50),
-                    color: Color(0xFF4f2565),
-                  ),
-                  child: TextButton(
-                    onPressed: isDisabled
-                        ? null
-                        : () async {
-                      print(price);
-                      print(General_price);
-                      print('hi');
-                      print(img64Front);
+                    Container(
+                        height: 48,
+                        width: 300,
+                        margin: EdgeInsets.symmetric(horizontal: 20),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(50),
+                          color: Color(0xFF4f2565),
+                        ),
+                        child: TextButton(
+                          onPressed: isDisabled
+                              ? null
+                              : () async {
 
-                      if (referenceNumber.text == '') {
-                        setState(() {
-                          emptyReferenceNumber = true;
-                        });
-                      }
-                      if (referenceNumber.text != '') {
-                        setState(() {
-                          emptyReferenceNumber = false;
-                        });
-                        if (referenceNumber.text.length != 10 ||
-                            referenceNumber.text.substring(3, 10) ==
-                                '0000000') {
-                          setState(() {
-                            errorReferenceNumber = true;
-                          });
-                        } else {
-                          setState(() {
-                            errorReferenceNumber = false;
-                          });
-                        }
-                      }
-                      if(documentExpiryDate.text ==""){
-                        setState(() {
-                          emptyDocumentExpiryDate = true;
-                        });
-                      }
-                      if(documentExpiryDate.text !=""){
-                        setState(() {
-                          emptyDocumentExpiryDate = false;
-                        });
-                      }
-                      if (img64Front == null) {
-                        setState(() {
-                          imageIDFrontRequired = true;
-                        });
-                      }
-                      if (img64Front != null) {
-                        setState(() {
-                          imageIDFrontRequired = false;
-                        });
-                      }
-                      if (img64Back == null) {
-                        setState(() {
-                          imageIDBackRequired = true;
-                        });
-                      }
-                      if (img64Back != null) {
-                        setState(() {
-                          imageIDBackRequired = false;
-                        });
-                      }
+                            print(price);
+                            print(General_price);
+                            print('hi');
+                            print(img64Front);
+                            documentExpiryDate.text=globalVars.expirayDate;
+                            if (referenceNumber.text == '') {
+                              setState(() {
+                                emptyReferenceNumber = true;
+                              });
+                            }
+                            if (referenceNumber.text != '') {
+                              setState(() {
+                                emptyReferenceNumber = false;
+                              });
+                              if (referenceNumber.text.length != 10 ||
+                                  referenceNumber.text.substring(3, 10) ==
+                                      '0000000') {
+                                setState(() {
+                                  errorReferenceNumber = true;
+                                });
+                              } else {
+                                setState(() {
+                                  errorReferenceNumber = false;
+                                });
+                              }
+                            }
+                            if(documentExpiryDate.text =="" &&globalVars.expirayDate==""){
+                              setState(() {
+                                emptyDocumentExpiryDate = true;
+                              });
+                            }
+                            if(documentExpiryDate.text !=""&&globalVars.expirayDate!=""){
+                              setState(() {
+                                emptyDocumentExpiryDate = false;
+                              });
+                            }
 
-                      if ((showSimCard == true &&
-                          marketType == 'PRETOPOST') ||
-                          marketType == 'GSM') {
-                        if (simCard.text == '') {
-                          setState(() {
-                            emptySimCard = true;
-                          });
-                        }
-                        if (simCard.text != '') {
-                          setState(() {
-                            emptySimCard = false;
-                          });
-                        }
-                      }
 
-                      /******************************************** New 4-Sep-2023 ***********************************/
-                      if (isArmy == true) {
-                        if (MilitaryNumber.text == '') {
-                          setState(() {
-                            emptyMilitaryNumber = true;
-                          });
-                        }
-                        if (MilitaryNumber.text != '') {
-                          setState(() {
-                            emptyMilitaryNumber = false;
-                          });
-                        }
-                      }
-                      if (showCommitmentList == true) {
-                        if (selectedCommitment == null) {
-                          setState(() {
-                            emptyCommitmentList = true;
-                          });
-                        }
-                        if (selectedCommitment != null) {
-                          setState(() {
-                            emptyCommitmentList = false;
-                          });
-                        }
-                      }
-                      /***********************************************************************************************/
-                      if (Permessions.contains('05.02.03.01') == true) {
+
+                            if ((showSimCard == true &&
+                                marketType == 'PRETOPOST') ||
+                                marketType == 'GSM') {
+                              if (simCard.text == '') {
+                                setState(() {
+                                  emptySimCard = true;
+                                });
+                              }
+                              if (simCard.text != '') {
+                                setState(() {
+                                  emptySimCard = false;
+                                });
+                              }
+                            }
+
+                            /******************************************** New 4-Sep-2023 ***********************************/
+                            if (isArmy == true) {
+                              if (MilitaryNumber.text == '') {
+                                setState(() {
+                                  emptyMilitaryNumber = true;
+                                });
+                              }
+                              if (MilitaryNumber.text != '') {
+                                setState(() {
+                                  emptyMilitaryNumber = false;
+                                });
+                              }
+                            }
+                            if (showCommitmentList == true) {
+                              if (selectedCommitment == null) {
+                                setState(() {
+                                  emptyCommitmentList = true;
+                                });
+                              }
+                              if (selectedCommitment != null) {
+                                setState(() {
+                                  emptyCommitmentList = false;
+                                });
+                              }
+                            }
+                            /***********************************************************************************************/
+                            /* if (Permessions.contains('05.02.03.01') == true) {
                         if (img64Contract == null) {
                           setState(() {
                             imageContractRequired = true;
@@ -3858,1268 +3982,1281 @@ class _JordainianCustomerInformationState
                             imageContractRequired = false;
                           });
                         }
-                      }
-                      /***********************************************************************************************/
+                      }*/
+                            /***********************************************************************************************/
 
-                      if (isArmy == true && showCommitmentList == true) {
-                        if ((showSimCard == true &&
-                            marketType == 'PRETOPOST') ||
-                            marketType == 'GSM') {
-                          if (Permessions.contains('05.02.03.01') ==
-                              true) {
-                            if (role == "ZainTelesales" &&
-                                on_BEHALF == false &&
-                                reseller == false) {
-                              showToast(
-                                  "Notifications_Form.switch_required"
-                                      .tr()
-                                      .toString(),
-                                  context: context,
-                                  animation: StyledToastAnimation.scale,
-                                  fullWidth: true);
-                            }
-                            if (role == "ZainTelesales" &&
-                                on_BEHALF == false &&
-                                reseller == true) {
-                              showToast(
-                                  "Notifications_Form.switch_required"
-                                      .tr()
-                                      .toString(),
-                                  context: context,
-                                  animation: StyledToastAnimation.scale,
-                                  fullWidth: true);
-                            }
-                            if (role == "ZainTelesales" &&
-                                on_BEHALF == true &&
-                                reseller == false) {
-                              showToast(
-                                  "Notifications_Form.switch_required"
-                                      .tr()
-                                      .toString(),
-                                  context: context,
-                                  animation: StyledToastAnimation.scale,
-                                  fullWidth: true);
-                            }
-                            if (role == "ZainTelesales" &&
-                                on_BEHALF == true &&
-                                reseller == true) {
-                              if (img64Front != null &&
-                                  img64Back != null &&
-                                  img64Contract != null &&
-                                  referenceNumber.text != '' &&
-                                  documentExpiryDate.text != ''&&
-                                  MilitaryNumber.text != '' &&
-                                  selectedCommitment != null) {
-                                showAlertDialogSaveData(
+                            if (isArmy == true && showCommitmentList == true) {
+                              if ((showSimCard == true &&
+                                  marketType == 'PRETOPOST') ||
+                                  marketType == 'GSM') {
+                                if (Permessions.contains('05.02.03.01') ==
+                                    true) {
+                                  if (role == "ZainTelesales" &&
+                                      on_BEHALF == false &&
+                                      reseller == false) {
+                                    showToast(
+                                        "Notifications_Form.switch_required"
+                                            .tr()
+                                            .toString(),
+                                        context: context,
+                                        animation: StyledToastAnimation.scale,
+                                        fullWidth: true);
+                                  }
+                                  if (role == "ZainTelesales" &&
+                                      on_BEHALF == false &&
+                                      reseller == true) {
+                                    showToast(
+                                        "Notifications_Form.switch_required"
+                                            .tr()
+                                            .toString(),
+                                        context: context,
+                                        animation: StyledToastAnimation.scale,
+                                        fullWidth: true);
+                                  }
+                                  if (role == "ZainTelesales" &&
+                                      on_BEHALF == true &&
+                                      reseller == false) {
+                                    showToast(
+                                        "Notifications_Form.switch_required"
+                                            .tr()
+                                            .toString(),
+                                        context: context,
+                                        animation: StyledToastAnimation.scale,
+                                        fullWidth: true);
+                                  }
+                                  if (role == "ZainTelesales" &&
+                                      on_BEHALF == true &&
+                                      reseller == true) {
+                                    if (
+                                        //   img64Contract != null &&
+                                        referenceNumber.text != '' &&
+                                        documentExpiryDate.text != ''&&
+                                        MilitaryNumber.text != '' &&
+                                        selectedCommitment != null) {
+                                      Update_Price();
+                                      /*showAlertDialogSaveData(
                                     context,
                                     ' المبلغ الكلي المطلوب هو  ${General_price}  دينار، هل انت متأكد؟  ',
-                                    'The total amount required is ${General_price} JD are you sure you want to continue?');
-                              } else {
-                                showToast(
-                                    "Notifications_Form.notifications_required_fields"
-                                        .tr()
-                                        .toString(),
-                                    context: context,
-                                    animation: StyledToastAnimation.scale,
-                                    fullWidth: true);
-                              }
-                            }
-                            if (role != "ZainTelesales") {
-                              if (img64Front != null &&
-                                  img64Back != null &&
-                                  img64Contract != null &&
-                                  referenceNumber.text != '' &&
-                                  documentExpiryDate.text != ''&&
-                                  simCard.text != '' &&
-                                  MilitaryNumber.text != '' &&
-                                  selectedCommitment != null) {
-                                showAlertDialogSaveData(
+                                    'The total amount required is ${General_price} JD are you sure you want to continue?');*/
+                                    } else {
+                                      showToast(
+                                          "Notifications_Form.notifications_required_fields"
+                                              .tr()
+                                              .toString(),
+                                          context: context,
+                                          animation: StyledToastAnimation.scale,
+                                          fullWidth: true);
+                                    }
+                                  }
+                                  if (role != "ZainTelesales") {
+                                    if (
+                                        //  img64Contract != null &&
+                                        referenceNumber.text != '' &&
+                                        documentExpiryDate.text != ''&&
+                                        simCard.text != '' &&
+                                        MilitaryNumber.text != '' &&
+                                        selectedCommitment != null) {
+                                      Update_Price();
+                                      /* showAlertDialogSaveData(
                                     context,
                                     ' المبلغ الكلي المطلوب هو  ${General_price}  دينار، هل انت متأكد؟  ',
-                                    'The total amount required is ${General_price} JD are you sure you want to continue?');
-                              } else {
-                                showToast(
-                                    "Notifications_Form.notifications_required_fields"
-                                        .tr()
-                                        .toString(),
-                                    context: context,
-                                    animation: StyledToastAnimation.scale,
-                                    fullWidth: true);
-                              }
-                            }
-                          } else {
-                            if (role == "ZainTelesales" &&
-                                on_BEHALF == false &&
-                                reseller == false) {
-                              showToast(
-                                  "Notifications_Form.switch_required"
-                                      .tr()
-                                      .toString(),
-                                  context: context,
-                                  animation: StyledToastAnimation.scale,
-                                  fullWidth: true);
-                            }
-                            if (role == "ZainTelesales" &&
-                                on_BEHALF == false &&
-                                reseller == true) {
-                              showToast(
-                                  "Notifications_Form.switch_required"
-                                      .tr()
-                                      .toString(),
-                                  context: context,
-                                  animation: StyledToastAnimation.scale,
-                                  fullWidth: true);
-                            }
-                            if (role == "ZainTelesales" &&
-                                on_BEHALF == true &&
-                                reseller == false) {
-                              showToast(
-                                  "Notifications_Form.switch_required"
-                                      .tr()
-                                      .toString(),
-                                  context: context,
-                                  animation: StyledToastAnimation.scale,
-                                  fullWidth: true);
-                            }
-                            if (role == "ZainTelesales" &&
-                                on_BEHALF == true &&
-                                reseller == true) {
-                              if (img64Front != null &&
-                                  img64Back != null &&
-                                  referenceNumber.text != '' &&
-                                  documentExpiryDate.text != ''&&
-                                  MilitaryNumber.text != '' &&
-                                  selectedCommitment != null) {
-                                showAlertDialogSaveData(
+                                    'The total amount required is ${General_price} JD are you sure you want to continue?');*/
+                                    } else {
+                                      showToast(
+                                          "Notifications_Form.notifications_required_fields"
+                                              .tr()
+                                              .toString(),
+                                          context: context,
+                                          animation: StyledToastAnimation.scale,
+                                          fullWidth: true);
+                                    }
+                                  }
+                                } else {
+                                  if (role == "ZainTelesales" &&
+                                      on_BEHALF == false &&
+                                      reseller == false) {
+                                    showToast(
+                                        "Notifications_Form.switch_required"
+                                            .tr()
+                                            .toString(),
+                                        context: context,
+                                        animation: StyledToastAnimation.scale,
+                                        fullWidth: true);
+                                  }
+                                  if (role == "ZainTelesales" &&
+                                      on_BEHALF == false &&
+                                      reseller == true) {
+                                    showToast(
+                                        "Notifications_Form.switch_required"
+                                            .tr()
+                                            .toString(),
+                                        context: context,
+                                        animation: StyledToastAnimation.scale,
+                                        fullWidth: true);
+                                  }
+                                  if (role == "ZainTelesales" &&
+                                      on_BEHALF == true &&
+                                      reseller == false) {
+                                    showToast(
+                                        "Notifications_Form.switch_required"
+                                            .tr()
+                                            .toString(),
+                                        context: context,
+                                        animation: StyledToastAnimation.scale,
+                                        fullWidth: true);
+                                  }
+                                  if (role == "ZainTelesales" &&
+                                      on_BEHALF == true &&
+                                      reseller == true) {
+                                    if (
+                                        referenceNumber.text != '' &&
+                                        documentExpiryDate.text != ''&&
+                                        MilitaryNumber.text != '' &&
+                                        selectedCommitment != null) {
+                                      Update_Price();
+                                      /* showAlertDialogSaveData(
                                     context,
                                     ' المبلغ الكلي المطلوب هو  ${General_price}  دينار، هل انت متأكد؟  ',
-                                    'The total amount required is ${General_price} JD are you sure you want to continue?');
-                              } else {
-                                showToast(
-                                    "Notifications_Form.notifications_required_fields"
-                                        .tr()
-                                        .toString(),
-                                    context: context,
-                                    animation: StyledToastAnimation.scale,
-                                    fullWidth: true);
-                              }
-                            }
+                                    'The total amount required is ${General_price} JD are you sure you want to continue?');*/
+                                    } else {
+                                      showToast(
+                                          "Notifications_Form.notifications_required_fields"
+                                              .tr()
+                                              .toString(),
+                                          context: context,
+                                          animation: StyledToastAnimation.scale,
+                                          fullWidth: true);
+                                    }
+                                  }
 
-                            if (role != "ZainTelesales") {
-                              if (img64Front != null &&
-                                  img64Back != null &&
-                                  referenceNumber.text != '' &&
-                                  documentExpiryDate.text != ''&&
-                                  simCard.text != '' &&
-                                  MilitaryNumber.text != '' &&
-                                  selectedCommitment != null) {
-                                showAlertDialogSaveData(
+                                  if (role != "ZainTelesales") {
+                                    if (
+                                        referenceNumber.text != '' &&
+                                        documentExpiryDate.text != ''&&
+                                        simCard.text != '' &&
+                                        MilitaryNumber.text != '' &&
+                                        selectedCommitment != null) {
+                                      Update_Price();
+                                      /*  showAlertDialogSaveData(
                                     context,
                                     ' المبلغ الكلي المطلوب هو  ${General_price}  دينار، هل انت متأكد؟  ',
-                                    'The total amount required is ${General_price} JD are you sure you want to continue?');
-                              } else {
-                                showToast(
-                                    "Notifications_Form.notifications_required_fields"
-                                        .tr()
-                                        .toString(),
-                                    context: context,
-                                    animation: StyledToastAnimation.scale,
-                                    fullWidth: true);
-                              }
-                            }
-                          }
-                        } else if (showSimCard == false &&
-                            marketType == 'PRETOPOST') {
-                          if (Permessions.contains('05.02.03.01') ==
-                              true) {
-                            if (role == "ZainTelesales" &&
-                                on_BEHALF == false &&
-                                reseller == false) {
-                              showToast(
-                                  "Notifications_Form.switch_required"
-                                      .tr()
-                                      .toString(),
-                                  context: context,
-                                  animation: StyledToastAnimation.scale,
-                                  fullWidth: true);
-                            }
-                            if (role == "ZainTelesales" &&
-                                on_BEHALF == false &&
-                                reseller == true) {
-                              showToast(
-                                  "Notifications_Form.switch_required"
-                                      .tr()
-                                      .toString(),
-                                  context: context,
-                                  animation: StyledToastAnimation.scale,
-                                  fullWidth: true);
-                            }
-                            if (role == "ZainTelesales" &&
-                                on_BEHALF == true &&
-                                reseller == false) {
-                              showToast(
-                                  "Notifications_Form.switch_required"
-                                      .tr()
-                                      .toString(),
-                                  context: context,
-                                  animation: StyledToastAnimation.scale,
-                                  fullWidth: true);
-                            }
-                            if (role == "ZainTelesales" &&
-                                on_BEHALF == true &&
-                                reseller == true) {
-                              if (img64Front != null &&
-                                  img64Back != null &&
-                                  img64Contract != null &&
-                                  referenceNumber.text != '' &&
-                                  documentExpiryDate.text != ''&&
-                                  MilitaryNumber.text != '' &&
-                                  selectedCommitment != null) {
-                                showAlertDialogSaveData(
+                                    'The total amount required is ${General_price} JD are you sure you want to continue?');*/
+                                    } else {
+                                      showToast(
+                                          "Notifications_Form.notifications_required_fields"
+                                              .tr()
+                                              .toString(),
+                                          context: context,
+                                          animation: StyledToastAnimation.scale,
+                                          fullWidth: true);
+                                    }
+                                  }
+                                }
+                              } else if (showSimCard == false &&
+                                  marketType == 'PRETOPOST') {
+                                if (Permessions.contains('05.02.03.01') ==
+                                    true) {
+                                  if (role == "ZainTelesales" &&
+                                      on_BEHALF == false &&
+                                      reseller == false) {
+                                    showToast(
+                                        "Notifications_Form.switch_required"
+                                            .tr()
+                                            .toString(),
+                                        context: context,
+                                        animation: StyledToastAnimation.scale,
+                                        fullWidth: true);
+                                  }
+                                  if (role == "ZainTelesales" &&
+                                      on_BEHALF == false &&
+                                      reseller == true) {
+                                    showToast(
+                                        "Notifications_Form.switch_required"
+                                            .tr()
+                                            .toString(),
+                                        context: context,
+                                        animation: StyledToastAnimation.scale,
+                                        fullWidth: true);
+                                  }
+                                  if (role == "ZainTelesales" &&
+                                      on_BEHALF == true &&
+                                      reseller == false) {
+                                    showToast(
+                                        "Notifications_Form.switch_required"
+                                            .tr()
+                                            .toString(),
+                                        context: context,
+                                        animation: StyledToastAnimation.scale,
+                                        fullWidth: true);
+                                  }
+                                  if (role == "ZainTelesales" &&
+                                      on_BEHALF == true &&
+                                      reseller == true) {
+                                    if (
+                                        // img64Contract != null &&
+                                        referenceNumber.text != '' &&
+                                        documentExpiryDate.text != ''&&
+                                        MilitaryNumber.text != '' &&
+                                        selectedCommitment != null) {
+                                      Update_Price();
+                                      /* showAlertDialogSaveData(
                                     context,
                                     ' المبلغ الكلي المطلوب هو  ${General_price}  دينار، هل انت متأكد؟  ',
-                                    'The total amount required is ${General_price} JD are you sure you want to continue?');
-                              } else {
-                                showToast(
-                                    "Notifications_Form.notifications_required_fields"
-                                        .tr()
-                                        .toString(),
-                                    context: context,
-                                    animation: StyledToastAnimation.scale,
-                                    fullWidth: true);
-                              }
-                            }
-                            if (role != "ZainTelesales") {
-                              if (img64Front != null &&
-                                  img64Back != null &&
-                                  img64Contract != null &&
-                                  referenceNumber.text != '' &&
-                                  documentExpiryDate.text != ''&&
-                                  MilitaryNumber.text != '' &&
-                                  selectedCommitment != null) {
-                                showAlertDialogSaveData(
+                                    'The total amount required is ${General_price} JD are you sure you want to continue?');*/
+                                    } else {
+                                      showToast(
+                                          "Notifications_Form.notifications_required_fields"
+                                              .tr()
+                                              .toString(),
+                                          context: context,
+                                          animation: StyledToastAnimation.scale,
+                                          fullWidth: true);
+                                    }
+                                  }
+                                  if (role != "ZainTelesales") {
+                                    if (
+                                        //  img64Contract != null &&
+                                        referenceNumber.text != '' &&
+                                        documentExpiryDate.text != ''&&
+                                        MilitaryNumber.text != '' &&
+                                        selectedCommitment != null) {
+                                      Update_Price();
+                                      /* showAlertDialogSaveData(
                                     context,
                                     ' المبلغ الكلي المطلوب هو  ${General_price}  دينار، هل انت متأكد؟  ',
-                                    'The total amount required is ${General_price} JD are you sure you want to continue?');
-                              } else {
-                                showToast(
-                                    "Notifications_Form.notifications_required_fields"
-                                        .tr()
-                                        .toString(),
-                                    context: context,
-                                    animation: StyledToastAnimation.scale,
-                                    fullWidth: true);
-                              }
-                            }
-                          } else {
-                            if (role == "ZainTelesales" &&
-                                on_BEHALF == false &&
-                                reseller == false) {
-                              showToast(
-                                  "Notifications_Form.switch_required"
-                                      .tr()
-                                      .toString(),
-                                  context: context,
-                                  animation: StyledToastAnimation.scale,
-                                  fullWidth: true);
-                            }
-                            if (role == "ZainTelesales" &&
-                                on_BEHALF == false &&
-                                reseller == true) {
-                              showToast(
-                                  "Notifications_Form.switch_required"
-                                      .tr()
-                                      .toString(),
-                                  context: context,
-                                  animation: StyledToastAnimation.scale,
-                                  fullWidth: true);
-                            }
-                            if (role == "ZainTelesales" &&
-                                on_BEHALF == true &&
-                                reseller == false) {
-                              showToast(
-                                  "Notifications_Form.switch_required"
-                                      .tr()
-                                      .toString(),
-                                  context: context,
-                                  animation: StyledToastAnimation.scale,
-                                  fullWidth: true);
-                            }
-                            if (role == "ZainTelesales" &&
-                                on_BEHALF == true &&
-                                reseller == true) {
-                              if (img64Front != null &&
-                                  img64Back != null &&
-                                  referenceNumber.text != '' &&
-                                  documentExpiryDate.text != ''&&
-                                  MilitaryNumber.text != '' &&
-                                  selectedCommitment != null) {
-                                showAlertDialogSaveData(
+                                    'The total amount required is ${General_price} JD are you sure you want to continue?');*/
+                                    } else {
+                                      showToast(
+                                          "Notifications_Form.notifications_required_fields"
+                                              .tr()
+                                              .toString(),
+                                          context: context,
+                                          animation: StyledToastAnimation.scale,
+                                          fullWidth: true);
+                                    }
+                                  }
+                                } else {
+                                  if (role == "ZainTelesales" &&
+                                      on_BEHALF == false &&
+                                      reseller == false) {
+                                    showToast(
+                                        "Notifications_Form.switch_required"
+                                            .tr()
+                                            .toString(),
+                                        context: context,
+                                        animation: StyledToastAnimation.scale,
+                                        fullWidth: true);
+                                  }
+                                  if (role == "ZainTelesales" &&
+                                      on_BEHALF == false &&
+                                      reseller == true) {
+                                    showToast(
+                                        "Notifications_Form.switch_required"
+                                            .tr()
+                                            .toString(),
+                                        context: context,
+                                        animation: StyledToastAnimation.scale,
+                                        fullWidth: true);
+                                  }
+                                  if (role == "ZainTelesales" &&
+                                      on_BEHALF == true &&
+                                      reseller == false) {
+                                    showToast(
+                                        "Notifications_Form.switch_required"
+                                            .tr()
+                                            .toString(),
+                                        context: context,
+                                        animation: StyledToastAnimation.scale,
+                                        fullWidth: true);
+                                  }
+                                  if (role == "ZainTelesales" &&
+                                      on_BEHALF == true &&
+                                      reseller == true) {
+                                    if (
+                                        referenceNumber.text != '' &&
+                                        documentExpiryDate.text != ''&&
+                                        MilitaryNumber.text != '' &&
+                                        selectedCommitment != null) {
+                                      Update_Price();
+                                      /* showAlertDialogSaveData(
                                     context,
                                     ' المبلغ الكلي المطلوب هو  ${General_price}  دينار، هل انت متأكد؟  ',
-                                    'The total amount required is ${General_price} JD are you sure you want to continue?');
-                              } else {
-                                showToast(
-                                    "Notifications_Form.notifications_required_fields"
-                                        .tr()
-                                        .toString(),
-                                    context: context,
-                                    animation: StyledToastAnimation.scale,
-                                    fullWidth: true);
-                              }
-                            }
+                                    'The total amount required is ${General_price} JD are you sure you want to continue?');*/
+                                    } else {
+                                      showToast(
+                                          "Notifications_Form.notifications_required_fields"
+                                              .tr()
+                                              .toString(),
+                                          context: context,
+                                          animation: StyledToastAnimation.scale,
+                                          fullWidth: true);
+                                    }
+                                  }
 
-                            if (role != "ZainTelesales") {
-                              if (img64Front != null &&
-                                  img64Back != null &&
-                                  referenceNumber.text != '' &&
-                                  documentExpiryDate.text != ''&&
-                                  MilitaryNumber.text != '' &&
-                                  selectedCommitment != null) {
-                                showAlertDialogSaveData(
+                                  if (role != "ZainTelesales") {
+                                    if (
+                                        referenceNumber.text != '' &&
+                                        documentExpiryDate.text != ''&&
+                                        MilitaryNumber.text != '' &&
+                                        selectedCommitment != null) {
+                                      Update_Price();
+                                      /*  showAlertDialogSaveData(
                                     context,
                                     ' المبلغ الكلي المطلوب هو  ${General_price}  دينار، هل انت متأكد؟  ',
-                                    'The total amount required is ${General_price} JD are you sure you want to continue?');
-                              } else {
-                                showToast(
-                                    "Notifications_Form.notifications_required_fields"
-                                        .tr()
-                                        .toString(),
-                                    context: context,
-                                    animation: StyledToastAnimation.scale,
-                                    fullWidth: true);
-                              }
-                            }
-                          }
-                        }
-                      }
-
-                      if (isArmy == true && showCommitmentList == false) {
-                        if ((showSimCard == true &&
-                            marketType == 'PRETOPOST') ||
-                            marketType == 'GSM') {
-                          if (Permessions.contains('05.02.03.01') ==
-                              true) {
-                            if (role == "ZainTelesales" &&
-                                on_BEHALF == false &&
-                                reseller == false) {
-                              showToast(
-                                  "Notifications_Form.switch_required"
-                                      .tr()
-                                      .toString(),
-                                  context: context,
-                                  animation: StyledToastAnimation.scale,
-                                  fullWidth: true);
-                            }
-                            if (role == "ZainTelesales" &&
-                                on_BEHALF == false &&
-                                reseller == true) {
-                              showToast(
-                                  "Notifications_Form.switch_required"
-                                      .tr()
-                                      .toString(),
-                                  context: context,
-                                  animation: StyledToastAnimation.scale,
-                                  fullWidth: true);
-                            }
-                            if (role == "ZainTelesales" &&
-                                on_BEHALF == true &&
-                                reseller == false) {
-                              showToast(
-                                  "Notifications_Form.switch_required"
-                                      .tr()
-                                      .toString(),
-                                  context: context,
-                                  animation: StyledToastAnimation.scale,
-                                  fullWidth: true);
-                            }
-                            if (role == "ZainTelesales" &&
-                                on_BEHALF == true &&
-                                reseller == true) {
-                              if (img64Front != null &&
-                                  img64Back != null &&
-                                  img64Contract != null &&
-                                  referenceNumber.text != '' &&
-                                  documentExpiryDate.text != ''&&
-                                  MilitaryNumber.text != '') {
-                                showAlertDialogSaveData(
-                                    context,
-                                    ' المبلغ الكلي المطلوب هو  ${General_price}  دينار، هل انت متأكد؟  ',
-                                    'The total amount required is ${General_price} JD are you sure you want to continue?');
-                              } else {
-                                showToast(
-                                    "Notifications_Form.notifications_required_fields"
-                                        .tr()
-                                        .toString(),
-                                    context: context,
-                                    animation: StyledToastAnimation.scale,
-                                    fullWidth: true);
-                              }
-                            }
-                            if (role != "ZainTelesales") {
-                              if (img64Front != null &&
-                                  img64Back != null &&
-                                  img64Contract != null &&
-                                  referenceNumber.text != '' &&
-                                  documentExpiryDate.text != ''&&
-                                  simCard.text != '' &&
-                                  MilitaryNumber.text != '') {
-                                showAlertDialogSaveData(
-                                    context,
-                                    ' المبلغ الكلي المطلوب هو  ${General_price}  دينار، هل انت متأكد؟  ',
-                                    'The total amount required is ${General_price} JD are you sure you want to continue?');
-                              } else {
-                                showToast(
-                                    "Notifications_Form.notifications_required_fields"
-                                        .tr()
-                                        .toString(),
-                                    context: context,
-                                    animation: StyledToastAnimation.scale,
-                                    fullWidth: true);
-                              }
-                            }
-                          } else {
-                            if (role == "ZainTelesales" &&
-                                on_BEHALF == false &&
-                                reseller == false) {
-                              showToast(
-                                  "Notifications_Form.switch_required"
-                                      .tr()
-                                      .toString(),
-                                  context: context,
-                                  animation: StyledToastAnimation.scale,
-                                  fullWidth: true);
-                            }
-                            if (role == "ZainTelesales" &&
-                                on_BEHALF == false &&
-                                reseller == true) {
-                              showToast(
-                                  "Notifications_Form.switch_required"
-                                      .tr()
-                                      .toString(),
-                                  context: context,
-                                  animation: StyledToastAnimation.scale,
-                                  fullWidth: true);
-                            }
-                            if (role == "ZainTelesales" &&
-                                on_BEHALF == true &&
-                                reseller == false) {
-                              showToast(
-                                  "Notifications_Form.switch_required"
-                                      .tr()
-                                      .toString(),
-                                  context: context,
-                                  animation: StyledToastAnimation.scale,
-                                  fullWidth: true);
-                            }
-                            if (role == "ZainTelesales" &&
-                                on_BEHALF == true &&
-                                reseller == true) {
-                              if (img64Front != null &&
-                                  img64Back != null &&
-                                  referenceNumber.text != '' &&
-                                  documentExpiryDate.text != ''&&
-                                  MilitaryNumber.text != '') {
-                                showAlertDialogSaveData(
-                                    context,
-                                    ' المبلغ الكلي المطلوب هو  ${General_price}  دينار، هل انت متأكد؟  ',
-                                    'The total amount required is ${General_price} JD are you sure you want to continue?');
-                              } else {
-                                showToast(
-                                    "Notifications_Form.notifications_required_fields"
-                                        .tr()
-                                        .toString(),
-                                    context: context,
-                                    animation: StyledToastAnimation.scale,
-                                    fullWidth: true);
-                              }
-                            }
-                            if (role != "ZainTelesales") {
-                              if (img64Front != null &&
-                                  img64Back != null &&
-                                  referenceNumber.text != '' &&
-                                  documentExpiryDate.text != ''&&
-                                  simCard.text != '' &&
-                                  MilitaryNumber.text != '') {
-                                showAlertDialogSaveData(
-                                    context,
-                                    ' المبلغ الكلي المطلوب هو  ${General_price}  دينار، هل انت متأكد؟  ',
-                                    'The total amount required is ${General_price} JD are you sure you want to continue?');
-                              } else {
-                                showToast(
-                                    "Notifications_Form.notifications_required_fields"
-                                        .tr()
-                                        .toString(),
-                                    context: context,
-                                    animation: StyledToastAnimation.scale,
-                                    fullWidth: true);
-                              }
-                            }
-                          }
-                        } else if (showSimCard == false &&
-                            marketType == 'PRETOPOST') {
-                          if (Permessions.contains('05.02.03.01') ==
-                              true) {
-                            if (role == "ZainTelesales" &&
-                                on_BEHALF == false &&
-                                reseller == false) {
-                              showToast(
-                                  "Notifications_Form.switch_required"
-                                      .tr()
-                                      .toString(),
-                                  context: context,
-                                  animation: StyledToastAnimation.scale,
-                                  fullWidth: true);
-                            }
-                            if (role == "ZainTelesales" &&
-                                on_BEHALF == false &&
-                                reseller == true) {
-                              showToast(
-                                  "Notifications_Form.switch_required"
-                                      .tr()
-                                      .toString(),
-                                  context: context,
-                                  animation: StyledToastAnimation.scale,
-                                  fullWidth: true);
-                            }
-                            if (role == "ZainTelesales" &&
-                                on_BEHALF == true &&
-                                reseller == false) {
-                              showToast(
-                                  "Notifications_Form.switch_required"
-                                      .tr()
-                                      .toString(),
-                                  context: context,
-                                  animation: StyledToastAnimation.scale,
-                                  fullWidth: true);
-                            }
-                            if (role == "ZainTelesales" &&
-                                on_BEHALF == true &&
-                                reseller == true) {
-                              if (img64Front != null &&
-                                  img64Back != null &&
-                                  img64Contract != null &&
-                                  referenceNumber.text != '' &&
-                                  documentExpiryDate.text != ''&&
-                                  MilitaryNumber.text != '') {
-                                showAlertDialogSaveData(
-                                    context,
-                                    ' المبلغ الكلي المطلوب هو  ${General_price}  دينار، هل انت متأكد؟  ',
-                                    'The total amount required is ${General_price} JD are you sure you want to continue?');
-                              } else {
-                                showToast(
-                                    "Notifications_Form.notifications_required_fields"
-                                        .tr()
-                                        .toString(),
-                                    context: context,
-                                    animation: StyledToastAnimation.scale,
-                                    fullWidth: true);
-                              }
-                            }
-                            if (role != "ZainTelesales") {
-                              if (img64Front != null &&
-                                  img64Back != null &&
-                                  img64Contract != null &&
-                                  referenceNumber.text != '' &&
-                                  documentExpiryDate.text != ''&&
-                                  MilitaryNumber.text != '') {
-                                showAlertDialogSaveData(
-                                    context,
-                                    ' المبلغ الكلي المطلوب هو  ${General_price}  دينار، هل انت متأكد؟  ',
-                                    'The total amount required is ${General_price} JD are you sure you want to continue?');
-                              } else {
-                                showToast(
-                                    "Notifications_Form.notifications_required_fields"
-                                        .tr()
-                                        .toString(),
-                                    context: context,
-                                    animation: StyledToastAnimation.scale,
-                                    fullWidth: true);
-                              }
-                            }
-                          } else {
-                            if (role == "ZainTelesales" &&
-                                on_BEHALF == false &&
-                                reseller == false) {
-                              showToast(
-                                  "Notifications_Form.switch_required"
-                                      .tr()
-                                      .toString(),
-                                  context: context,
-                                  animation: StyledToastAnimation.scale,
-                                  fullWidth: true);
-                            }
-                            if (role == "ZainTelesales" &&
-                                on_BEHALF == false &&
-                                reseller == true) {
-                              showToast(
-                                  "Notifications_Form.switch_required"
-                                      .tr()
-                                      .toString(),
-                                  context: context,
-                                  animation: StyledToastAnimation.scale,
-                                  fullWidth: true);
-                            }
-                            if (role == "ZainTelesales" &&
-                                on_BEHALF == true &&
-                                reseller == false) {
-                              showToast(
-                                  "Notifications_Form.switch_required"
-                                      .tr()
-                                      .toString(),
-                                  context: context,
-                                  animation: StyledToastAnimation.scale,
-                                  fullWidth: true);
-                            }
-                            if (role == "ZainTelesales" &&
-                                on_BEHALF == true &&
-                                reseller == true) {
-                              if (img64Front != null &&
-                                  img64Back != null &&
-                                  referenceNumber.text != '' &&
-                                  documentExpiryDate.text != ''&&
-                                  MilitaryNumber.text != '') {
-                                showAlertDialogSaveData(
-                                    context,
-                                    ' المبلغ الكلي المطلوب هو  ${General_price}  دينار، هل انت متأكد؟  ',
-                                    'The total amount required is ${General_price} JD are you sure you want to continue?');
-                              } else {
-                                showToast(
-                                    "Notifications_Form.notifications_required_fields"
-                                        .tr()
-                                        .toString(),
-                                    context: context,
-                                    animation: StyledToastAnimation.scale,
-                                    fullWidth: true);
+                                    'The total amount required is ${General_price} JD are you sure you want to continue?');*/
+                                    } else {
+                                      showToast(
+                                          "Notifications_Form.notifications_required_fields"
+                                              .tr()
+                                              .toString(),
+                                          context: context,
+                                          animation: StyledToastAnimation.scale,
+                                          fullWidth: true);
+                                    }
+                                  }
+                                }
                               }
                             }
 
-                            if (role != "ZainTelesales") {
-                              if (img64Front != null &&
-                                  img64Back != null &&
-                                  referenceNumber.text != '' &&
-                                  documentExpiryDate.text != ''&&
-                                  MilitaryNumber.text != '') {
-                                showAlertDialogSaveData(
+                            if (isArmy == true && showCommitmentList == false) {
+                              if ((showSimCard == true &&
+                                  marketType == 'PRETOPOST') ||
+                                  marketType == 'GSM') {
+                                if (Permessions.contains('05.02.03.01') ==
+                                    true) {
+                                  if (role == "ZainTelesales" &&
+                                      on_BEHALF == false &&
+                                      reseller == false) {
+                                    showToast(
+                                        "Notifications_Form.switch_required"
+                                            .tr()
+                                            .toString(),
+                                        context: context,
+                                        animation: StyledToastAnimation.scale,
+                                        fullWidth: true);
+                                  }
+                                  if (role == "ZainTelesales" &&
+                                      on_BEHALF == false &&
+                                      reseller == true) {
+                                    showToast(
+                                        "Notifications_Form.switch_required"
+                                            .tr()
+                                            .toString(),
+                                        context: context,
+                                        animation: StyledToastAnimation.scale,
+                                        fullWidth: true);
+                                  }
+                                  if (role == "ZainTelesales" &&
+                                      on_BEHALF == true &&
+                                      reseller == false) {
+                                    showToast(
+                                        "Notifications_Form.switch_required"
+                                            .tr()
+                                            .toString(),
+                                        context: context,
+                                        animation: StyledToastAnimation.scale,
+                                        fullWidth: true);
+                                  }
+                                  if (role == "ZainTelesales" &&
+                                      on_BEHALF == true &&
+                                      reseller == true) {
+                                    if (
+                                        // img64Contract != null &&
+                                        referenceNumber.text != '' &&
+                                        documentExpiryDate.text != ''&&
+                                        MilitaryNumber.text != '') {
+                                      Update_Price();
+                                      /*    showAlertDialogSaveData(
                                     context,
                                     ' المبلغ الكلي المطلوب هو  ${General_price}  دينار، هل انت متأكد؟  ',
-                                    'The total amount required is ${General_price} JD are you sure you want to continue?');
-                              } else {
-                                showToast(
-                                    "Notifications_Form.notifications_required_fields"
-                                        .tr()
-                                        .toString(),
-                                    context: context,
-                                    animation: StyledToastAnimation.scale,
-                                    fullWidth: true);
-                              }
-                            }
-                          }
-                        }
-                      }
+                                    'The total amount required is ${General_price} JD are you sure you want to continue?');*/
+                                    } else {
+                                      showToast(
+                                          "Notifications_Form.notifications_required_fields"
+                                              .tr()
+                                              .toString(),
+                                          context: context,
+                                          animation: StyledToastAnimation.scale,
+                                          fullWidth: true);
+                                    }
+                                  }
+                                  if (role != "ZainTelesales") {
+                                    if (
+                                        //  img64Contract != null &&
+                                        referenceNumber.text != '' &&
+                                        documentExpiryDate.text != ''&&
+                                        simCard.text != '' &&
+                                        MilitaryNumber.text != '') {
+                                      Update_Price();
+                                      /* showAlertDialogSaveData(
+                                    context,
+                                    ' المبلغ الكلي المطلوب هو  ${General_price}  دينار، هل انت متأكد؟  ',
+                                    'The total amount required is ${General_price} JD are you sure you want to continue?');*/
+                                    } else {
+                                      showToast(
+                                          "Notifications_Form.notifications_required_fields"
+                                              .tr()
+                                              .toString(),
+                                          context: context,
+                                          animation: StyledToastAnimation.scale,
+                                          fullWidth: true);
+                                    }
+                                  }
+                                } else {
+                                  if (role == "ZainTelesales" &&
+                                      on_BEHALF == false &&
+                                      reseller == false) {
+                                    showToast(
+                                        "Notifications_Form.switch_required"
+                                            .tr()
+                                            .toString(),
+                                        context: context,
+                                        animation: StyledToastAnimation.scale,
+                                        fullWidth: true);
+                                  }
+                                  if (role == "ZainTelesales" &&
+                                      on_BEHALF == false &&
+                                      reseller == true) {
+                                    showToast(
+                                        "Notifications_Form.switch_required"
+                                            .tr()
+                                            .toString(),
+                                        context: context,
+                                        animation: StyledToastAnimation.scale,
+                                        fullWidth: true);
+                                  }
+                                  if (role == "ZainTelesales" &&
+                                      on_BEHALF == true &&
+                                      reseller == false) {
+                                    showToast(
+                                        "Notifications_Form.switch_required"
+                                            .tr()
+                                            .toString(),
+                                        context: context,
+                                        animation: StyledToastAnimation.scale,
+                                        fullWidth: true);
+                                  }
+                                  if (role == "ZainTelesales" &&
+                                      on_BEHALF == true &&
+                                      reseller == true) {
+                                    if (
+                                        referenceNumber.text != '' &&
+                                        documentExpiryDate.text != ''&&
+                                        MilitaryNumber.text != '') {
+                                      Update_Price();
+                                      /* showAlertDialogSaveData(
+                                    context,
+                                    ' المبلغ الكلي المطلوب هو  ${General_price}  دينار، هل انت متأكد؟  ',
+                                    'The total amount required is ${General_price} JD are you sure you want to continue?');*/
+                                    } else {
+                                      showToast(
+                                          "Notifications_Form.notifications_required_fields"
+                                              .tr()
+                                              .toString(),
+                                          context: context,
+                                          animation: StyledToastAnimation.scale,
+                                          fullWidth: true);
+                                    }
+                                  }
+                                  if (role != "ZainTelesales") {
+                                    if (
+                                        referenceNumber.text != '' &&
+                                        documentExpiryDate.text != ''&&
+                                        simCard.text != '' &&
+                                        MilitaryNumber.text != '') {
+                                      Update_Price();
+                                      /*  showAlertDialogSaveData(
+                                    context,
+                                    ' المبلغ الكلي المطلوب هو  ${General_price}  دينار، هل انت متأكد؟  ',
+                                    'The total amount required is ${General_price} JD are you sure you want to continue?');*/
+                                    } else {
+                                      showToast(
+                                          "Notifications_Form.notifications_required_fields"
+                                              .tr()
+                                              .toString(),
+                                          context: context,
+                                          animation: StyledToastAnimation.scale,
+                                          fullWidth: true);
+                                    }
+                                  }
+                                }
+                              } else if (showSimCard == false &&
+                                  marketType == 'PRETOPOST') {
+                                if (Permessions.contains('05.02.03.01') ==
+                                    true) {
+                                  if (role == "ZainTelesales" &&
+                                      on_BEHALF == false &&
+                                      reseller == false) {
+                                    showToast(
+                                        "Notifications_Form.switch_required"
+                                            .tr()
+                                            .toString(),
+                                        context: context,
+                                        animation: StyledToastAnimation.scale,
+                                        fullWidth: true);
+                                  }
+                                  if (role == "ZainTelesales" &&
+                                      on_BEHALF == false &&
+                                      reseller == true) {
+                                    showToast(
+                                        "Notifications_Form.switch_required"
+                                            .tr()
+                                            .toString(),
+                                        context: context,
+                                        animation: StyledToastAnimation.scale,
+                                        fullWidth: true);
+                                  }
+                                  if (role == "ZainTelesales" &&
+                                      on_BEHALF == true &&
+                                      reseller == false) {
+                                    showToast(
+                                        "Notifications_Form.switch_required"
+                                            .tr()
+                                            .toString(),
+                                        context: context,
+                                        animation: StyledToastAnimation.scale,
+                                        fullWidth: true);
+                                  }
+                                  if (role == "ZainTelesales" &&
+                                      on_BEHALF == true &&
+                                      reseller == true) {
+                                    if (
+                                        //  img64Contract != null &&
+                                        referenceNumber.text != '' &&
+                                        documentExpiryDate.text != ''&&
+                                        MilitaryNumber.text != '') {
+                                      Update_Price();
+                                      /* showAlertDialogSaveData(
+                                    context,
+                                    ' المبلغ الكلي المطلوب هو  ${General_price}  دينار، هل انت متأكد؟  ',
+                                    'The total amount required is ${General_price} JD are you sure you want to continue?');*/
+                                    } else {
+                                      showToast(
+                                          "Notifications_Form.notifications_required_fields"
+                                              .tr()
+                                              .toString(),
+                                          context: context,
+                                          animation: StyledToastAnimation.scale,
+                                          fullWidth: true);
+                                    }
+                                  }
+                                  if (role != "ZainTelesales") {
+                                    if (
+                                        // img64Contract != null &&
+                                        referenceNumber.text != '' &&
+                                        documentExpiryDate.text != ''&&
+                                        MilitaryNumber.text != '') {
+                                      Update_Price();
+                                      /* showAlertDialogSaveData(
+                                    context,
+                                    ' المبلغ الكلي المطلوب هو  ${General_price}  دينار، هل انت متأكد؟  ',
+                                    'The total amount required is ${General_price} JD are you sure you want to continue?');*/
+                                    } else {
+                                      showToast(
+                                          "Notifications_Form.notifications_required_fields"
+                                              .tr()
+                                              .toString(),
+                                          context: context,
+                                          animation: StyledToastAnimation.scale,
+                                          fullWidth: true);
+                                    }
+                                  }
+                                } else {
+                                  if (role == "ZainTelesales" &&
+                                      on_BEHALF == false &&
+                                      reseller == false) {
+                                    showToast(
+                                        "Notifications_Form.switch_required"
+                                            .tr()
+                                            .toString(),
+                                        context: context,
+                                        animation: StyledToastAnimation.scale,
+                                        fullWidth: true);
+                                  }
+                                  if (role == "ZainTelesales" &&
+                                      on_BEHALF == false &&
+                                      reseller == true) {
+                                    showToast(
+                                        "Notifications_Form.switch_required"
+                                            .tr()
+                                            .toString(),
+                                        context: context,
+                                        animation: StyledToastAnimation.scale,
+                                        fullWidth: true);
+                                  }
+                                  if (role == "ZainTelesales" &&
+                                      on_BEHALF == true &&
+                                      reseller == false) {
+                                    showToast(
+                                        "Notifications_Form.switch_required"
+                                            .tr()
+                                            .toString(),
+                                        context: context,
+                                        animation: StyledToastAnimation.scale,
+                                        fullWidth: true);
+                                  }
+                                  if (role == "ZainTelesales" &&
+                                      on_BEHALF == true &&
+                                      reseller == true) {
+                                    if (
+                                        referenceNumber.text != '' &&
+                                        documentExpiryDate.text != ''&&
+                                        MilitaryNumber.text != '') {
+                                      Update_Price();
+                                      /* showAlertDialogSaveData(
+                                    context,
+                                    ' المبلغ الكلي المطلوب هو  ${General_price}  دينار، هل انت متأكد؟  ',
+                                    'The total amount required is ${General_price} JD are you sure you want to continue?');*/
+                                    } else {
+                                      showToast(
+                                          "Notifications_Form.notifications_required_fields"
+                                              .tr()
+                                              .toString(),
+                                          context: context,
+                                          animation: StyledToastAnimation.scale,
+                                          fullWidth: true);
+                                    }
+                                  }
 
-                      if (isArmy == false && showCommitmentList == true) {
-                        if ((showSimCard == true &&
-                            marketType == 'PRETOPOST') ||
-                            marketType == 'GSM') {
-                          if (Permessions.contains('05.02.03.01') ==
-                              true) {
-                            if (role == "ZainTelesales" &&
-                                on_BEHALF == false &&
-                                reseller == false) {
-                              showToast(
-                                  "Notifications_Form.switch_required"
-                                      .tr()
-                                      .toString(),
-                                  context: context,
-                                  animation: StyledToastAnimation.scale,
-                                  fullWidth: true);
+                                  if (role != "ZainTelesales") {
+                                    if (
+                                        referenceNumber.text != '' &&
+                                        documentExpiryDate.text != ''&&
+                                        MilitaryNumber.text != '') {
+                                      Update_Price();
+                                      /*showAlertDialogSaveData(
+                                    context,
+                                    ' المبلغ الكلي المطلوب هو  ${General_price}  دينار، هل انت متأكد؟  ',
+                                    'The total amount required is ${General_price} JD are you sure you want to continue?');*/
+                                    } else {
+                                      showToast(
+                                          "Notifications_Form.notifications_required_fields"
+                                              .tr()
+                                              .toString(),
+                                          context: context,
+                                          animation: StyledToastAnimation.scale,
+                                          fullWidth: true);
+                                    }
+                                  }
+                                }
+                              }
                             }
-                            if (role == "ZainTelesales" &&
-                                on_BEHALF == false &&
-                                reseller == true) {
-                              showToast(
-                                  "Notifications_Form.switch_required"
-                                      .tr()
-                                      .toString(),
-                                  context: context,
-                                  animation: StyledToastAnimation.scale,
-                                  fullWidth: true);
-                            }
-                            if (role == "ZainTelesales" &&
-                                on_BEHALF == true &&
-                                reseller == false) {
-                              showToast(
-                                  "Notifications_Form.switch_required"
-                                      .tr()
-                                      .toString(),
-                                  context: context,
-                                  animation: StyledToastAnimation.scale,
-                                  fullWidth: true);
-                            }
-                            if (role == "ZainTelesales" &&
-                                on_BEHALF == true &&
-                                reseller == true) {
-                              if (img64Front != null &&
-                                  img64Back != null &&
-                                  img64Contract != null &&
-                                  referenceNumber.text != '' &&
 
-                                  documentExpiryDate.text != ''&&
-                                  selectedCommitment != null) {
-                                showAlertDialogSaveData(
-                                    context,
-                                    ' المبلغ الكلي المطلوب هو  ${General_price}  دينار، هل انت متأكد؟  ',
-                                    'The total amount required is ${General_price} JD are you sure you want to continue?');
-                              } else {
-                                showToast(
-                                    "Notifications_Form.notifications_required_fields"
-                                        .tr()
-                                        .toString(),
-                                    context: context,
-                                    animation: StyledToastAnimation.scale,
-                                    fullWidth: true);
-                              }
-                            }
-                            if (role != "ZainTelesales") {
-                              if (img64Front != null &&
-                                  img64Back != null &&
-                                  img64Contract != null &&
-                                  referenceNumber.text != '' &&
-                                  documentExpiryDate.text != ''&&
-                                  simCard.text != '' &&
-                                  selectedCommitment != null) {
-                                showAlertDialogSaveData(
-                                    context,
-                                    ' المبلغ الكلي المطلوب هو  ${General_price}  دينار، هل انت متأكد؟  ',
-                                    'The total amount required is ${General_price} JD are you sure you want to continue?');
-                              } else {
-                                showToast(
-                                    "Notifications_Form.notifications_required_fields"
-                                        .tr()
-                                        .toString(),
-                                    context: context,
-                                    animation: StyledToastAnimation.scale,
-                                    fullWidth: true);
-                              }
-                            }
-                          } else {
-                            if (role == "ZainTelesales" &&
-                                on_BEHALF == false &&
-                                reseller == false) {
-                              showToast(
-                                  "Notifications_Form.switch_required"
-                                      .tr()
-                                      .toString(),
-                                  context: context,
-                                  animation: StyledToastAnimation.scale,
-                                  fullWidth: true);
-                            }
-                            if (role == "ZainTelesales" &&
-                                on_BEHALF == false &&
-                                reseller == true) {
-                              showToast(
-                                  "Notifications_Form.switch_required"
-                                      .tr()
-                                      .toString(),
-                                  context: context,
-                                  animation: StyledToastAnimation.scale,
-                                  fullWidth: true);
-                            }
-                            if (role == "ZainTelesales" &&
-                                on_BEHALF == true &&
-                                reseller == false) {
-                              showToast(
-                                  "Notifications_Form.switch_required"
-                                      .tr()
-                                      .toString(),
-                                  context: context,
-                                  animation: StyledToastAnimation.scale,
-                                  fullWidth: true);
-                            }
-                            if (role == "ZainTelesales" &&
-                                on_BEHALF == true &&
-                                reseller == true) {
-                              if (img64Front != null &&
-                                  img64Back != null &&
-                                  referenceNumber.text != '' &&
-                                  documentExpiryDate.text != ''&&
-                                  selectedCommitment != null) {
-                                showAlertDialogSaveData(
-                                    context,
-                                    ' المبلغ الكلي المطلوب هو  ${General_price}  دينار، هل انت متأكد؟  ',
-                                    'The total amount required is ${General_price} JD are you sure you want to continue?');
-                              } else {
-                                showToast(
-                                    "Notifications_Form.notifications_required_fields"
-                                        .tr()
-                                        .toString(),
-                                    context: context,
-                                    animation: StyledToastAnimation.scale,
-                                    fullWidth: true);
-                              }
-                            }
-                            if (role != "ZainTelesales") {
-                              if (img64Front != null &&
-                                  img64Back != null &&
-                                  referenceNumber.text != '' &&
-                                  documentExpiryDate.text != ''&&
-                                  simCard.text != '' &&
-                                  selectedCommitment != null) {
-                                showAlertDialogSaveData(
-                                    context,
-                                    ' المبلغ الكلي المطلوب هو  ${General_price}  دينار، هل انت متأكد؟  ',
-                                    'The total amount required is ${General_price} JD are you sure you want to continue?');
-                              } else {
-                                showToast(
-                                    "Notifications_Form.notifications_required_fields"
-                                        .tr()
-                                        .toString(),
-                                    context: context,
-                                    animation: StyledToastAnimation.scale,
-                                    fullWidth: true);
-                              }
-                            }
-                          }
-                        } else if (showSimCard == false &&
-                            marketType == 'PRETOPOST') {
-                          if (Permessions.contains('05.02.03.01') ==
-                              true) {
-                            if (role == "ZainTelesales" &&
-                                on_BEHALF == false &&
-                                reseller == false) {
-                              showToast(
-                                  "Notifications_Form.switch_required"
-                                      .tr()
-                                      .toString(),
-                                  context: context,
-                                  animation: StyledToastAnimation.scale,
-                                  fullWidth: true);
-                            }
-                            if (role == "ZainTelesales" &&
-                                on_BEHALF == false &&
-                                reseller == true) {
-                              showToast(
-                                  "Notifications_Form.switch_required"
-                                      .tr()
-                                      .toString(),
-                                  context: context,
-                                  animation: StyledToastAnimation.scale,
-                                  fullWidth: true);
-                            }
-                            if (role == "ZainTelesales" &&
-                                on_BEHALF == true &&
-                                reseller == false) {
-                              showToast(
-                                  "Notifications_Form.switch_required"
-                                      .tr()
-                                      .toString(),
-                                  context: context,
-                                  animation: StyledToastAnimation.scale,
-                                  fullWidth: true);
-                            }
-                            if (role == "ZainTelesales" &&
-                                on_BEHALF == true &&
-                                reseller == true) {
-                              if (img64Front != null &&
-                                  img64Back != null &&
-                                  img64Contract != null &&
-                                  referenceNumber.text != '' &&
-                                  documentExpiryDate.text != ''&&
-                                  selectedCommitment != null) {
-                                showAlertDialogSaveData(
-                                    context,
-                                    ' المبلغ الكلي المطلوب هو  ${General_price}  دينار، هل انت متأكد؟  ',
-                                    'The total amount required is ${General_price} JD are you sure you want to continue?');
-                              } else {
-                                showToast(
-                                    "Notifications_Form.notifications_required_fields"
-                                        .tr()
-                                        .toString(),
-                                    context: context,
-                                    animation: StyledToastAnimation.scale,
-                                    fullWidth: true);
-                              }
-                            }
-                            if (role != "ZainTelesales") {
-                              if (img64Front != null &&
-                                  img64Back != null &&
-                                  img64Contract != null &&
-                                  referenceNumber.text != '' &&
-                                  documentExpiryDate.text != ''&&
-                                  selectedCommitment != null) {
-                                showAlertDialogSaveData(
-                                    context,
-                                    ' المبلغ الكلي المطلوب هو  ${General_price}  دينار، هل انت متأكد؟  ',
-                                    'The total amount required is ${General_price} JD are you sure you want to continue?');
-                              } else {
-                                showToast(
-                                    "Notifications_Form.notifications_required_fields"
-                                        .tr()
-                                        .toString(),
-                                    context: context,
-                                    animation: StyledToastAnimation.scale,
-                                    fullWidth: true);
-                              }
-                            }
-                          } else {
-                            if (role == "ZainTelesales" &&
-                                on_BEHALF == false &&
-                                reseller == false) {
-                              showToast(
-                                  "Notifications_Form.switch_required"
-                                      .tr()
-                                      .toString(),
-                                  context: context,
-                                  animation: StyledToastAnimation.scale,
-                                  fullWidth: true);
-                            }
-                            if (role == "ZainTelesales" &&
-                                on_BEHALF == false &&
-                                reseller == true) {
-                              showToast(
-                                  "Notifications_Form.switch_required"
-                                      .tr()
-                                      .toString(),
-                                  context: context,
-                                  animation: StyledToastAnimation.scale,
-                                  fullWidth: true);
-                            }
-                            if (role == "ZainTelesales" &&
-                                on_BEHALF == true &&
-                                reseller == false) {
-                              showToast(
-                                  "Notifications_Form.switch_required"
-                                      .tr()
-                                      .toString(),
-                                  context: context,
-                                  animation: StyledToastAnimation.scale,
-                                  fullWidth: true);
-                            }
-                            if (role == "ZainTelesales" &&
-                                on_BEHALF == true &&
-                                reseller == true) {
-                              if (img64Front != null &&
-                                  img64Back != null &&
-                                  referenceNumber.text != '' &&
-                                  documentExpiryDate.text != ''&&
-                                  selectedCommitment != null) {
-                                showAlertDialogSaveData(
-                                    context,
-                                    ' المبلغ الكلي المطلوب هو  ${General_price}  دينار، هل انت متأكد؟  ',
-                                    'The total amount required is ${General_price} JD are you sure you want to continue?');
-                              } else {
-                                showToast(
-                                    "Notifications_Form.notifications_required_fields"
-                                        .tr()
-                                        .toString(),
-                                    context: context,
-                                    animation: StyledToastAnimation.scale,
-                                    fullWidth: true);
-                              }
-                            }
-                            if (role != "ZainTelesales") {
-                              if (img64Front != null &&
-                                  img64Back != null &&
-                                  referenceNumber.text != '' &&
-                                  documentExpiryDate.text != ''&&
-                                  selectedCommitment != null) {
-                                showAlertDialogSaveData(
-                                    context,
-                                    ' المبلغ الكلي المطلوب هو  ${General_price}  دينار، هل انت متأكد؟  ',
-                                    'The total amount required is ${General_price} JD are you sure you want to continue?');
-                              } else {
-                                showToast(
-                                    "Notifications_Form.notifications_required_fields"
-                                        .tr()
-                                        .toString(),
-                                    context: context,
-                                    animation: StyledToastAnimation.scale,
-                                    fullWidth: true);
-                              }
-                            }
-                          }
-                        }
-                      }
+                            if (isArmy == false && showCommitmentList == true) {
+                              if ((showSimCard == true &&
+                                  marketType == 'PRETOPOST') ||
+                                  marketType == 'GSM') {
+                                if (Permessions.contains('05.02.03.01') ==
+                                    true) {
+                                  if (role == "ZainTelesales" &&
+                                      on_BEHALF == false &&
+                                      reseller == false) {
+                                    showToast(
+                                        "Notifications_Form.switch_required"
+                                            .tr()
+                                            .toString(),
+                                        context: context,
+                                        animation: StyledToastAnimation.scale,
+                                        fullWidth: true);
+                                  }
+                                  if (role == "ZainTelesales" &&
+                                      on_BEHALF == false &&
+                                      reseller == true) {
+                                    showToast(
+                                        "Notifications_Form.switch_required"
+                                            .tr()
+                                            .toString(),
+                                        context: context,
+                                        animation: StyledToastAnimation.scale,
+                                        fullWidth: true);
+                                  }
+                                  if (role == "ZainTelesales" &&
+                                      on_BEHALF == true &&
+                                      reseller == false) {
+                                    showToast(
+                                        "Notifications_Form.switch_required"
+                                            .tr()
+                                            .toString(),
+                                        context: context,
+                                        animation: StyledToastAnimation.scale,
+                                        fullWidth: true);
+                                  }
+                                  if (role == "ZainTelesales" &&
+                                      on_BEHALF == true &&
+                                      reseller == true) {
+                                    if (
+                                        //  img64Contract != null &&
+                                        referenceNumber.text != '' &&
 
-                      if (isArmy == false &&
-                          showCommitmentList == false) {
-                        if ((showSimCard == true &&
-                            marketType == 'PRETOPOST') ||
-                            marketType == 'GSM') {
-                          if (Permessions.contains('05.02.03.01') ==
-                              true) {
-                            if (role == "ZainTelesales" &&
-                                on_BEHALF == false &&
-                                reseller == false) {
-                              showToast(
-                                  "Notifications_Form.switch_required"
-                                      .tr()
-                                      .toString(),
-                                  context: context,
-                                  animation: StyledToastAnimation.scale,
-                                  fullWidth: true);
+                                        documentExpiryDate.text != ''&&
+                                        selectedCommitment != null) {
+                                      Update_Price();
+                                      /*showAlertDialogSaveData(
+                                    context,
+                                    ' المبلغ الكلي المطلوب هو  ${General_price}  دينار، هل انت متأكد؟  ',
+                                    'The total amount required is ${General_price} JD are you sure you want to continue?');*/
+                                    } else {
+                                      showToast(
+                                          "Notifications_Form.notifications_required_fields"
+                                              .tr()
+                                              .toString(),
+                                          context: context,
+                                          animation: StyledToastAnimation.scale,
+                                          fullWidth: true);
+                                    }
+                                  }
+                                  if (role != "ZainTelesales") {
+                                    if (
+                                        //  img64Contract != null &&
+                                        referenceNumber.text != '' &&
+                                        documentExpiryDate.text != ''&&
+                                        simCard.text != '' &&
+                                        selectedCommitment != null) {
+                                      Update_Price();
+                                      /* showAlertDialogSaveData(
+                                    context,
+                                    ' المبلغ الكلي المطلوب هو  ${General_price}  دينار، هل انت متأكد؟  ',
+                                    'The total amount required is ${General_price} JD are you sure you want to continue?');*/
+                                    } else {
+                                      showToast(
+                                          "Notifications_Form.notifications_required_fields"
+                                              .tr()
+                                              .toString(),
+                                          context: context,
+                                          animation: StyledToastAnimation.scale,
+                                          fullWidth: true);
+                                    }
+                                  }
+                                } else {
+                                  if (role == "ZainTelesales" &&
+                                      on_BEHALF == false &&
+                                      reseller == false) {
+                                    showToast(
+                                        "Notifications_Form.switch_required"
+                                            .tr()
+                                            .toString(),
+                                        context: context,
+                                        animation: StyledToastAnimation.scale,
+                                        fullWidth: true);
+                                  }
+                                  if (role == "ZainTelesales" &&
+                                      on_BEHALF == false &&
+                                      reseller == true) {
+                                    showToast(
+                                        "Notifications_Form.switch_required"
+                                            .tr()
+                                            .toString(),
+                                        context: context,
+                                        animation: StyledToastAnimation.scale,
+                                        fullWidth: true);
+                                  }
+                                  if (role == "ZainTelesales" &&
+                                      on_BEHALF == true &&
+                                      reseller == false) {
+                                    showToast(
+                                        "Notifications_Form.switch_required"
+                                            .tr()
+                                            .toString(),
+                                        context: context,
+                                        animation: StyledToastAnimation.scale,
+                                        fullWidth: true);
+                                  }
+                                  if (role == "ZainTelesales" &&
+                                      on_BEHALF == true &&
+                                      reseller == true) {
+                                    if (
+                                        referenceNumber.text != '' &&
+                                        documentExpiryDate.text != ''&&
+                                        selectedCommitment != null) {
+                                      Update_Price();
+                                      /* showAlertDialogSaveData(
+                                    context,
+                                    ' المبلغ الكلي المطلوب هو  ${General_price}  دينار، هل انت متأكد؟  ',
+                                    'The total amount required is ${General_price} JD are you sure you want to continue?');*/
+                                    } else {
+                                      showToast(
+                                          "Notifications_Form.notifications_required_fields"
+                                              .tr()
+                                              .toString(),
+                                          context: context,
+                                          animation: StyledToastAnimation.scale,
+                                          fullWidth: true);
+                                    }
+                                  }
+                                  if (role != "ZainTelesales") {
+                                    if (
+                                        referenceNumber.text != '' &&
+                                        documentExpiryDate.text != ''&&
+                                        simCard.text != '' &&
+                                        selectedCommitment != null) {
+                                      Update_Price();
+                                      /*  showAlertDialogSaveData(
+                                    context,
+                                    ' المبلغ الكلي المطلوب هو  ${General_price}  دينار، هل انت متأكد؟  ',
+                                    'The total amount required is ${General_price} JD are you sure you want to continue?');*/
+                                    } else {
+                                      showToast(
+                                          "Notifications_Form.notifications_required_fields"
+                                              .tr()
+                                              .toString(),
+                                          context: context,
+                                          animation: StyledToastAnimation.scale,
+                                          fullWidth: true);
+                                    }
+                                  }
+                                }
+                              } else if (showSimCard == false &&
+                                  marketType == 'PRETOPOST') {
+                                if (Permessions.contains('05.02.03.01') ==
+                                    true) {
+                                  if (role == "ZainTelesales" &&
+                                      on_BEHALF == false &&
+                                      reseller == false) {
+                                    showToast(
+                                        "Notifications_Form.switch_required"
+                                            .tr()
+                                            .toString(),
+                                        context: context,
+                                        animation: StyledToastAnimation.scale,
+                                        fullWidth: true);
+                                  }
+                                  if (role == "ZainTelesales" &&
+                                      on_BEHALF == false &&
+                                      reseller == true) {
+                                    showToast(
+                                        "Notifications_Form.switch_required"
+                                            .tr()
+                                            .toString(),
+                                        context: context,
+                                        animation: StyledToastAnimation.scale,
+                                        fullWidth: true);
+                                  }
+                                  if (role == "ZainTelesales" &&
+                                      on_BEHALF == true &&
+                                      reseller == false) {
+                                    showToast(
+                                        "Notifications_Form.switch_required"
+                                            .tr()
+                                            .toString(),
+                                        context: context,
+                                        animation: StyledToastAnimation.scale,
+                                        fullWidth: true);
+                                  }
+                                  if (role == "ZainTelesales" &&
+                                      on_BEHALF == true &&
+                                      reseller == true) {
+                                    if (
+                                        // img64Contract != null &&
+                                        referenceNumber.text != '' &&
+                                        documentExpiryDate.text != ''&&
+                                        selectedCommitment != null) {
+                                      Update_Price();
+                                      /* showAlertDialogSaveData(
+                                    context,
+                                    ' المبلغ الكلي المطلوب هو  ${General_price}  دينار، هل انت متأكد؟  ',
+                                    'The total amount required is ${General_price} JD are you sure you want to continue?');*/
+                                    } else {
+                                      showToast(
+                                          "Notifications_Form.notifications_required_fields"
+                                              .tr()
+                                              .toString(),
+                                          context: context,
+                                          animation: StyledToastAnimation.scale,
+                                          fullWidth: true);
+                                    }
+                                  }
+                                  if (role != "ZainTelesales") {
+                                    if (
+                                        // img64Contract != null &&
+                                        referenceNumber.text != '' &&
+                                        documentExpiryDate.text != ''&&
+                                        selectedCommitment != null) {
+                                      Update_Price();
+                                      /* showAlertDialogSaveData(
+                                    context,
+                                    ' المبلغ الكلي المطلوب هو  ${General_price}  دينار، هل انت متأكد؟  ',
+                                    'The total amount required is ${General_price} JD are you sure you want to continue?');*/
+                                    } else {
+                                      showToast(
+                                          "Notifications_Form.notifications_required_fields"
+                                              .tr()
+                                              .toString(),
+                                          context: context,
+                                          animation: StyledToastAnimation.scale,
+                                          fullWidth: true);
+                                    }
+                                  }
+                                } else {
+                                  if (role == "ZainTelesales" &&
+                                      on_BEHALF == false &&
+                                      reseller == false) {
+                                    showToast(
+                                        "Notifications_Form.switch_required"
+                                            .tr()
+                                            .toString(),
+                                        context: context,
+                                        animation: StyledToastAnimation.scale,
+                                        fullWidth: true);
+                                  }
+                                  if (role == "ZainTelesales" &&
+                                      on_BEHALF == false &&
+                                      reseller == true) {
+                                    showToast(
+                                        "Notifications_Form.switch_required"
+                                            .tr()
+                                            .toString(),
+                                        context: context,
+                                        animation: StyledToastAnimation.scale,
+                                        fullWidth: true);
+                                  }
+                                  if (role == "ZainTelesales" &&
+                                      on_BEHALF == true &&
+                                      reseller == false) {
+                                    showToast(
+                                        "Notifications_Form.switch_required"
+                                            .tr()
+                                            .toString(),
+                                        context: context,
+                                        animation: StyledToastAnimation.scale,
+                                        fullWidth: true);
+                                  }
+                                  if (role == "ZainTelesales" &&
+                                      on_BEHALF == true &&
+                                      reseller == true) {
+                                    if (
+                                        referenceNumber.text != '' &&
+                                        documentExpiryDate.text != ''&&
+                                        selectedCommitment != null) {
+                                      Update_Price();
+                                      /*  showAlertDialogSaveData(
+                                    context,
+                                    ' المبلغ الكلي المطلوب هو  ${General_price}  دينار، هل انت متأكد؟  ',
+                                    'The total amount required is ${General_price} JD are you sure you want to continue?');*/
+                                    } else {
+                                      showToast(
+                                          "Notifications_Form.notifications_required_fields"
+                                              .tr()
+                                              .toString(),
+                                          context: context,
+                                          animation: StyledToastAnimation.scale,
+                                          fullWidth: true);
+                                    }
+                                  }
+                                  if (role != "ZainTelesales") {
+                                    if (
+                                        referenceNumber.text != '' &&
+                                        documentExpiryDate.text != ''&&
+                                        selectedCommitment != null) {
+                                      Update_Price();
+                                      /*  showAlertDialogSaveData(
+                                    context,
+                                    ' المبلغ الكلي المطلوب هو  ${General_price}  دينار، هل انت متأكد؟  ',
+                                    'The total amount required is ${General_price} JD are you sure you want to continue?');*/
+                                    } else {
+                                      showToast(
+                                          "Notifications_Form.notifications_required_fields"
+                                              .tr()
+                                              .toString(),
+                                          context: context,
+                                          animation: StyledToastAnimation.scale,
+                                          fullWidth: true);
+                                    }
+                                  }
+                                }
+                              }
                             }
-                            if (role == "ZainTelesales" &&
-                                on_BEHALF == false &&
-                                reseller == true) {
-                              showToast(
-                                  "Notifications_Form.switch_required"
-                                      .tr()
-                                      .toString(),
-                                  context: context,
-                                  animation: StyledToastAnimation.scale,
-                                  fullWidth: true);
-                            }
-                            if (role == "ZainTelesales" &&
-                                on_BEHALF == true &&
-                                reseller == false) {
-                              showToast(
-                                  "Notifications_Form.switch_required"
-                                      .tr()
-                                      .toString(),
-                                  context: context,
-                                  animation: StyledToastAnimation.scale,
-                                  fullWidth: true);
-                            }
-                            if (role == "ZainTelesales" &&
-                                on_BEHALF == true &&
-                                reseller == true) {
-                              if (img64Front != null &&
-                                  img64Back != null &&
-                                  img64Contract != null &&
-                                  documentExpiryDate.text != ''&&
-                                  referenceNumber.text != ''
 
-                              ) {
-                                showAlertDialogSaveData(
+                            if (isArmy == false &&
+                                showCommitmentList == false) {
+                              if ((showSimCard == true &&
+                                  marketType == 'PRETOPOST') ||
+                                  marketType == 'GSM') {
+                                if (Permessions.contains('05.02.03.01') ==
+                                    true) {
+                                  if (role == "ZainTelesales" &&
+                                      on_BEHALF == false &&
+                                      reseller == false) {
+                                    showToast(
+                                        "Notifications_Form.switch_required"
+                                            .tr()
+                                            .toString(),
+                                        context: context,
+                                        animation: StyledToastAnimation.scale,
+                                        fullWidth: true);
+                                  }
+                                  if (role == "ZainTelesales" &&
+                                      on_BEHALF == false &&
+                                      reseller == true) {
+                                    showToast(
+                                        "Notifications_Form.switch_required"
+                                            .tr()
+                                            .toString(),
+                                        context: context,
+                                        animation: StyledToastAnimation.scale,
+                                        fullWidth: true);
+                                  }
+                                  if (role == "ZainTelesales" &&
+                                      on_BEHALF == true &&
+                                      reseller == false) {
+                                    showToast(
+                                        "Notifications_Form.switch_required"
+                                            .tr()
+                                            .toString(),
+                                        context: context,
+                                        animation: StyledToastAnimation.scale,
+                                        fullWidth: true);
+                                  }
+                                  if (role == "ZainTelesales" &&
+                                      on_BEHALF == true &&
+                                      reseller == true) {
+                                    if (
+                                        //  img64Contract != null &&
+                                        documentExpiryDate.text != ''&&
+                                        referenceNumber.text != ''
+
+                                    ) {
+                                      Update_Price();
+                                      /* showAlertDialogSaveData(
                                     context,
                                     ' المبلغ الكلي المطلوب هو  ${General_price}  دينار، هل انت متأكد؟  ',
-                                    'The total amount required is ${General_price} JD are you sure you want to continue?');
-                              } else {
-                                showToast(
-                                    "Notifications_Form.notifications_required_fields"
-                                        .tr()
-                                        .toString(),
-                                    context: context,
-                                    animation: StyledToastAnimation.scale,
-                                    fullWidth: true);
-                              }
-                            }
-                            if (role != "ZainTelesales") {
-                              if (img64Front != null &&
-                                  img64Back != null &&
-                                  img64Contract != null &&
-                                  referenceNumber.text != '' &&
-                                  documentExpiryDate.text != ''&&
-                                  simCard.text != '') {
-                                showAlertDialogSaveData(
+                                    'The total amount required is ${General_price} JD are you sure you want to continue?');*/
+                                    } else {
+                                      showToast(
+                                          "Notifications_Form.notifications_required_fields"
+                                              .tr()
+                                              .toString(),
+                                          context: context,
+                                          animation: StyledToastAnimation.scale,
+                                          fullWidth: true);
+                                    }
+                                  }
+                                  if (role != "ZainTelesales") {
+                                    if (
+                                        //  img64Contract != null &&
+                                        referenceNumber.text != '' &&
+                                        documentExpiryDate.text != ''&&
+                                        simCard.text != '') {
+                                      Update_Price();
+                                      /* showAlertDialogSaveData(
                                     context,
                                     ' المبلغ الكلي المطلوب هو  ${General_price}  دينار، هل انت متأكد؟  ',
-                                    'The total amount required is ${General_price} JD are you sure you want to continue?');
-                              } else {
-                                showToast(
-                                    "Notifications_Form.notifications_required_fields"
-                                        .tr()
-                                        .toString(),
-                                    context: context,
-                                    animation: StyledToastAnimation.scale,
-                                    fullWidth: true);
-                              }
-                            }
-                          } else {
-                            if (img64Front != null &&
-                                img64Back != null &&
-                                referenceNumber.text != '' &&
-                                documentExpiryDate.text != ''&&
-                                simCard.text != '') {
-                              showAlertDialogSaveData(
+                                    'The total amount required is ${General_price} JD are you sure you want to continue?');*/
+                                    } else {
+                                      showToast(
+                                          "Notifications_Form.notifications_required_fields"
+                                              .tr()
+                                              .toString(),
+                                          context: context,
+                                          animation: StyledToastAnimation.scale,
+                                          fullWidth: true);
+                                    }
+                                  }
+                                } else {
+                                  if (
+                                      referenceNumber.text != '' &&
+                                      documentExpiryDate.text != ''&&
+                                      simCard.text != '') {
+                                    Update_Price();
+                                    /*showAlertDialogSaveData(
                                   context,
                                   ' المبلغ الكلي المطلوب هو  ${General_price}  دينار، هل انت متأكد؟  ',
-                                  'The total amount required is ${General_price} JD are you sure you want to continue?');
-                            } else {
-                              showToast(
-                                  "Notifications_Form.notifications_required_fields"
-                                      .tr()
-                                      .toString(),
-                                  context: context,
-                                  animation: StyledToastAnimation.scale,
-                                  fullWidth: true);
-                            }
-                          }
-                        } else if (showSimCard == false &&
-                            marketType == 'PRETOPOST') {
-                          if (Permessions.contains('05.02.03.01') ==
-                              true) {
-                            if (role == "ZainTelesales" &&
-                                on_BEHALF == false &&
-                                reseller == false) {
-                              showToast(
-                                  "Notifications_Form.switch_required"
-                                      .tr()
-                                      .toString(),
-                                  context: context,
-                                  animation: StyledToastAnimation.scale,
-                                  fullWidth: true);
-                            }
-                            if (role == "ZainTelesales" &&
-                                on_BEHALF == false &&
-                                reseller == true) {
-                              showToast(
-                                  "Notifications_Form.switch_required"
-                                      .tr()
-                                      .toString(),
-                                  context: context,
-                                  animation: StyledToastAnimation.scale,
-                                  fullWidth: true);
-                            }
-                            if (role == "ZainTelesales" &&
-                                on_BEHALF == true &&
-                                reseller == false) {
-                              showToast(
-                                  "Notifications_Form.switch_required"
-                                      .tr()
-                                      .toString(),
-                                  context: context,
-                                  animation: StyledToastAnimation.scale,
-                                  fullWidth: true);
-                            }
-                            if (role == "ZainTelesales" &&
-                                on_BEHALF == true &&
-                                reseller == true) {
-                              if (img64Front != null &&
-                                  img64Back != null &&
-                                  img64Contract != null &&
-                                  documentExpiryDate.text != ''&&
-                                  referenceNumber.text != '') {
-                                showAlertDialogSaveData(
+                                  'The total amount required is ${General_price} JD are you sure you want to continue?');*/
+                                  } else {
+                                    showToast(
+                                        "Notifications_Form.notifications_required_fields"
+                                            .tr()
+                                            .toString(),
+                                        context: context,
+                                        animation: StyledToastAnimation.scale,
+                                        fullWidth: true);
+                                  }
+                                }
+                              } else if (showSimCard == false &&
+                                  marketType == 'PRETOPOST') {
+                                if (Permessions.contains('05.02.03.01') ==
+                                    true) {
+                                  if (role == "ZainTelesales" &&
+                                      on_BEHALF == false &&
+                                      reseller == false) {
+                                    showToast(
+                                        "Notifications_Form.switch_required"
+                                            .tr()
+                                            .toString(),
+                                        context: context,
+                                        animation: StyledToastAnimation.scale,
+                                        fullWidth: true);
+                                  }
+                                  if (role == "ZainTelesales" &&
+                                      on_BEHALF == false &&
+                                      reseller == true) {
+                                    showToast(
+                                        "Notifications_Form.switch_required"
+                                            .tr()
+                                            .toString(),
+                                        context: context,
+                                        animation: StyledToastAnimation.scale,
+                                        fullWidth: true);
+                                  }
+                                  if (role == "ZainTelesales" &&
+                                      on_BEHALF == true &&
+                                      reseller == false) {
+                                    showToast(
+                                        "Notifications_Form.switch_required"
+                                            .tr()
+                                            .toString(),
+                                        context: context,
+                                        animation: StyledToastAnimation.scale,
+                                        fullWidth: true);
+                                  }
+                                  if (role == "ZainTelesales" &&
+                                      on_BEHALF == true &&
+                                      reseller == true) {
+                                    if (
+                                        // img64Contract != null &&
+                                        documentExpiryDate.text != ''&&
+                                        referenceNumber.text != '') {
+                                      Update_Price();
+                                      /*  showAlertDialogSaveData(
                                     context,
                                     ' المبلغ الكلي المطلوب هو  ${General_price}  دينار، هل انت متأكد؟  ',
-                                    'The total amount required is ${General_price} JD are you sure you want to continue?');
-                              } else {
-                                showToast(
-                                    "Notifications_Form.notifications_required_fields"
-                                        .tr()
-                                        .toString(),
-                                    context: context,
-                                    animation: StyledToastAnimation.scale,
-                                    fullWidth: true);
-                              }
-                            }
-                            if (role != "ZainTelesales") {
-                              if (img64Front != null &&
-                                  img64Back != null &&
-                                  img64Contract != null &&
-                                  documentExpiryDate.text != ''&&
-                                  referenceNumber.text != '') {
-                                showAlertDialogSaveData(
+                                    'The total amount required is ${General_price} JD are you sure you want to continue?');*/
+                                    } else {
+                                      showToast(
+                                          "Notifications_Form.notifications_required_fields"
+                                              .tr()
+                                              .toString(),
+                                          context: context,
+                                          animation: StyledToastAnimation.scale,
+                                          fullWidth: true);
+                                    }
+                                  }
+                                  if (role != "ZainTelesales") {
+                                    if (
+                                        // img64Contract != null &&
+                                        documentExpiryDate.text != ''&&
+                                        referenceNumber.text != '') {
+                                      Update_Price();
+                                      /* showAlertDialogSaveData(
                                     context,
                                     ' المبلغ الكلي المطلوب هو  ${General_price}  دينار، هل انت متأكد؟  ',
-                                    'The total amount required is ${General_price} JD are you sure you want to continue?');
-                              } else {
-                                showToast(
-                                    "Notifications_Form.notifications_required_fields"
-                                        .tr()
-                                        .toString(),
-                                    context: context,
-                                    animation: StyledToastAnimation.scale,
-                                    fullWidth: true);
-                              }
-                            }
-                          } else {
-                            if (role == "ZainTelesales" &&
-                                on_BEHALF == false &&
-                                reseller == false) {
-                              showToast(
-                                  "Notifications_Form.switch_required"
-                                      .tr()
-                                      .toString(),
-                                  context: context,
-                                  animation: StyledToastAnimation.scale,
-                                  fullWidth: true);
-                            }
-                            if (role == "ZainTelesales" &&
-                                on_BEHALF == false &&
-                                reseller == true) {
-                              showToast(
-                                  "Notifications_Form.switch_required"
-                                      .tr()
-                                      .toString(),
-                                  context: context,
-                                  animation: StyledToastAnimation.scale,
-                                  fullWidth: true);
-                            }
-                            if (role == "ZainTelesales" &&
-                                on_BEHALF == true &&
-                                reseller == false) {
-                              showToast(
-                                  "Notifications_Form.switch_required"
-                                      .tr()
-                                      .toString(),
-                                  context: context,
-                                  animation: StyledToastAnimation.scale,
-                                  fullWidth: true);
-                            }
-                            if (role == "ZainTelesales" &&
-                                on_BEHALF == true &&
-                                reseller == true) {
-                              if (img64Front != null &&
-                                  img64Back != null &&
-                                  documentExpiryDate.text != ''&&
-                                  referenceNumber.text != ''  ) {
-                                showAlertDialogSaveData(
+                                    'The total amount required is ${General_price} JD are you sure you want to continue?');*/
+                                    } else {
+                                      showToast(
+                                          "Notifications_Form.notifications_required_fields"
+                                              .tr()
+                                              .toString(),
+                                          context: context,
+                                          animation: StyledToastAnimation.scale,
+                                          fullWidth: true);
+                                    }
+                                  }
+                                } else {
+                                  if (role == "ZainTelesales" &&
+                                      on_BEHALF == false &&
+                                      reseller == false) {
+                                    showToast(
+                                        "Notifications_Form.switch_required"
+                                            .tr()
+                                            .toString(),
+                                        context: context,
+                                        animation: StyledToastAnimation.scale,
+                                        fullWidth: true);
+                                  }
+                                  if (role == "ZainTelesales" &&
+                                      on_BEHALF == false &&
+                                      reseller == true) {
+                                    showToast(
+                                        "Notifications_Form.switch_required"
+                                            .tr()
+                                            .toString(),
+                                        context: context,
+                                        animation: StyledToastAnimation.scale,
+                                        fullWidth: true);
+                                  }
+                                  if (role == "ZainTelesales" &&
+                                      on_BEHALF == true &&
+                                      reseller == false) {
+                                    showToast(
+                                        "Notifications_Form.switch_required"
+                                            .tr()
+                                            .toString(),
+                                        context: context,
+                                        animation: StyledToastAnimation.scale,
+                                        fullWidth: true);
+                                  }
+                                  if (role == "ZainTelesales" &&
+                                      on_BEHALF == true &&
+                                      reseller == true) {
+                                    if (
+                                        documentExpiryDate.text != ''&&
+                                        referenceNumber.text != ''  ) {
+                                      Update_Price();
+                                      /*  showAlertDialogSaveData(
                                     context,
                                     ' المبلغ الكلي المطلوب هو  ${General_price}  دينار، هل انت متأكد؟  ',
-                                    'The total amount required is ${General_price} JD are you sure you want to continue?');
-                              } else {
-                                showToast(
-                                    "Notifications_Form.notifications_required_fields"
-                                        .tr()
-                                        .toString(),
-                                    context: context,
-                                    animation: StyledToastAnimation.scale,
-                                    fullWidth: true);
-                              }
-                            }
-                            if (role != "ZainTelesales") {
-                              if (img64Front != null &&
-                                  img64Back != null &&
-                                  documentExpiryDate.text != ''&&
-                                  referenceNumber.text != ''  ) {
-                                showAlertDialogSaveData(
+                                    'The total amount required is ${General_price} JD are you sure you want to continue?');*/
+                                    } else {
+                                      showToast(
+                                          "Notifications_Form.notifications_required_fields"
+                                              .tr()
+                                              .toString(),
+                                          context: context,
+                                          animation: StyledToastAnimation.scale,
+                                          fullWidth: true);
+                                    }
+                                  }
+                                  if (role != "ZainTelesales") {
+                                    if (
+                                        documentExpiryDate.text != ''&&
+                                        referenceNumber.text != ''  ) {
+                                      Update_Price();
+                                      /*    showAlertDialogSaveData(
                                     context,
                                     ' المبلغ الكلي المطلوب هو  ${General_price}  دينار، هل انت متأكد؟  ',
-                                    'The total amount required is ${General_price} JD are you sure you want to continue?');
-                              } else {
-                                showToast(
-                                    "Notifications_Form.notifications_required_fields"
-                                        .tr()
-                                        .toString(),
-                                    context: context,
-                                    animation: StyledToastAnimation.scale,
-                                    fullWidth: true);
+                                    'The total amount required is ${General_price} JD are you sure you want to continue?');*/
+                                    } else {
+                                      showToast(
+                                          "Notifications_Form.notifications_required_fields"
+                                              .tr()
+                                              .toString(),
+                                          context: context,
+                                          animation: StyledToastAnimation.scale,
+                                          fullWidth: true);
+                                    }
+                                  }
+                                }
                               }
                             }
-                          }
-                        }
-                      }
-                    },
-                    style: TextButton.styleFrom(
-                      backgroundColor: Color(0xFF4f2565),
-                      shape: const BeveledRectangleBorder(
-                          borderRadius: BorderRadius.all(Radius.circular(24))),
+                          },
+                          style: TextButton.styleFrom(
+                            backgroundColor: Color(0xFF4f2565),
+                            shape: const BeveledRectangleBorder(
+                                borderRadius: BorderRadius.all(Radius.circular(24))),
+                          ),
+                          child: Text(
+                            "Postpaid.Next".tr().toString(),
+                            style: TextStyle(
+                                color: Colors.white,
+                                letterSpacing: 0,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold),
+                          ),
+                        )),
+                    SizedBox(height: 30),
+                  ])),
+              if (isloading)
+                Positioned.fill(
+                  child: Container(
+                    color: Colors.black.withOpacity(0.5),
+                    child: Center(
+                      child: CircularProgressIndicator(
+                        color: Color(0xFF4f2565),
+                      ),
                     ),
-                    child: Text(
-                      "Postpaid.Next".tr().toString(),
-                      style: TextStyle(
-                          color: Colors.white,
-                          letterSpacing: 0,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold),
-                    ),
-                  )),
-              SizedBox(height: 30),
-            ])),
+                  ),
+                ),
+            ],
+          )
       ),
     );
   }

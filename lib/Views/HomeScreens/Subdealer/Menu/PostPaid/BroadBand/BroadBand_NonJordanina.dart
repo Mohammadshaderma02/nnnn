@@ -29,9 +29,12 @@ import 'package:dotted_border/dotted_border.dart';
 import 'package:photo_view/photo_view.dart';
 import 'dart:io' as Io;
 import 'package:dropdown_search/dropdown_search.dart';
+import 'package:camera/camera.dart';
+import 'package:sales_app/Views/HomeScreens/Subdealer/Menu/EKYC/GlobalVariables/global_variables.dart';
 import '../../../../Corporate/Multi_Use_Components/RequiredField.dart';
 import '../GSM/GSM_contract_details.dart';
 import 'BroadBand_contractDetails.dart';
+import '../PostpaidIdentificationSelfRecording.dart';
 
 import 'package:searchfield/searchfield.dart';
 import 'package:simple_barcode_scanner/simple_barcode_scanner.dart';
@@ -365,6 +368,7 @@ String imagePath="";
   var pickedFileContract;
 
   String lockedSIM = "N"; // N: Not Eligible, L: Locked, U: Unlocked
+  bool isDataFromEkyc = false; // ✅ Track if data came from eKYC passport processing
 
 
   void initState() {
@@ -432,6 +436,67 @@ String imagePath="";
         BlocProvider.of<PostpaidGenerateContractBloc>(context);
     PassportNumber.text = passportNumber;
     MSISDN.text = msisdn;
+
+    // ✅ Check if data is available from eKYC passport processing
+    if (globalVars.fullNameEn != null && globalVars.fullNameEn.isNotEmpty) {
+      setState(() {
+        isDataFromEkyc = true;
+      });
+      
+      // ✅ Parse full name and split into components
+      List<String> nameParts = globalVars.fullNameEn.trim().split(' ');
+      
+      if (nameParts.length >= 4) {
+        // Full name with at least 4 parts: First Second Third Last
+        FirstName.text = nameParts[0];
+        SecondName.text = nameParts[1];
+        ThirdName.text = nameParts[2];
+        LastName.text = nameParts.sublist(3).join(' '); // Rest goes to last name
+      } else if (nameParts.length == 3) {
+        // 3 parts: First Second Last
+        FirstName.text = nameParts[0];
+        SecondName.text = nameParts[1];
+        LastName.text = nameParts[2];
+      } else if (nameParts.length == 2) {
+        // 2 parts: First Last
+        FirstName.text = nameParts[0];
+        LastName.text = nameParts[1];
+      } else if (nameParts.length == 1) {
+        // Only 1 part
+        FirstName.text = nameParts[0];
+      }
+      
+      // ✅ Parse and populate birthdate (format: YYYY-MM-DD)
+      if (globalVars.birthdate != null && globalVars.birthdate.isNotEmpty) {
+        try {
+          List<String> dateParts = globalVars.birthdate.split('-');
+          if (dateParts.length == 3) {
+            year.text = dateParts[0]; // YYYY
+            month.text = dateParts[1]; // MM
+            day.text = dateParts[2]; // DD
+          }
+        } catch (e) {
+          print('❌ Error parsing birthdate: $e');
+        }
+      }
+      
+      // ✅ Populate document expiry date (format: YYYY-MM-DD to DD/MM/YYYY)
+      if (globalVars.expirayDate != null && globalVars.expirayDate.isNotEmpty) {
+        try {
+          List<String> dateParts = globalVars.expirayDate.split('-');
+          if (dateParts.length == 3) {
+            documentExpiryDate.text = '${dateParts[2]}/${dateParts[1]}/${dateParts[0]}';
+          }
+        } catch (e) {
+          print('❌ Error parsing expiry date: $e');
+        }
+      }
+      
+      print('✅ Populated fields from eKYC data');
+      print('Name: ${FirstName.text} ${SecondName.text} ${ThirdName.text} ${LastName.text}');
+      print('Birthdate: ${day.text}/${month.text}/${year.text}');
+      print('Expiry Date: ${documentExpiryDate.text}');
+    }
 
     print('hello');
     print(
@@ -2635,6 +2700,123 @@ String imagePath="";
         return alert;
       },
     );
+  }
+
+  /*****************************************************************************************************/
+  // ✅ Pre-submit validation - calls API to validate before proceeding to liveness
+  preSubmitValidation_API() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    Map test = {
+      "MarketType": this.marketType,
+      "IsJordanian": false, // Non-Jordanian
+      "NationalNo": null,
+      "PassportNo": passportNumber,
+      "PackageCode": this.packageCode,
+      "Msisdn": this.msisdn,
+      "isClaimed": claim
+    };
+
+    String body = json.encode(test);
+    var apiArea = urls.BASE_URL + '/Postpaid/preSubmitValidation';
+    final Uri url = Uri.parse(apiArea);
+    prefs.getString("accessToken");
+    final access = prefs.getString("accessToken");
+
+    final response = await http.post(
+      url,
+      headers: {
+        "content-type": "application/json",
+        "Authorization": prefs.getString("accessToken")
+      },
+      body: body,
+    );
+    int statusCode = response.statusCode;
+    var data = response.request;
+    print(statusCode);
+    print(data);
+    print(response);
+    print('body: [${response.body}]');
+
+    if (statusCode == 401) {
+      print('401  error ');
+    }
+    if (statusCode == 200) {
+      print("yes");
+      var result = json.decode(response.body);
+      print(result);
+      print('----------------Non-Jordanian BroadBand PreSubmit---------------');
+      print(result["data"]);
+      if (result["data"] == null) {}
+      if (result["status"] == 0) {
+        print(result["data"]);
+        // ✅ Navigate to video recording screen instead of showing dialog
+        _navigateToVideoRecording();
+      } else {}
+
+      print('-------------------------------');
+      print('Sucses API');
+      print(urls.BASE_URL + '/Postpaid/preSubmitValidation');
+
+      return result;
+    } else {}
+  }
+  /*****************************************************************************************************/
+  
+  // ✅ Navigate to video recording screen for eKYC
+  void _navigateToVideoRecording() async {
+    try {
+      // Get available cameras
+      final cameras = await availableCameras();
+      
+      // Get eKYC session UID and token from SharedPreferences or globalVars
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      String sessionUid = globalVars.sessionUid ?? '';
+      String ekycToken = globalVars.ekycTokenID ?? '';
+      
+      print('📹 Navigating to video recording screen...');
+      print('Session UID: $sessionUid');
+      print('MSISDN: $msisdn');
+      
+      // ✅ Navigate to shared video recording screen
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => PostpaidIdentificationSelfRecording(
+            cameras: cameras,
+            sessionUid: sessionUid,
+            ekycToken: ekycToken,
+            onVideoRecorded: (videoPath, videoHash) {
+              // Video successfully recorded and uploaded
+              print('✅ Video recorded successfully!');
+              print('Video Path: $videoPath');
+              print('Video Hash: $videoHash');
+              
+              // Close video recording screen
+              Navigator.pop(context);
+              
+              // ✅ Show confirmation dialog
+              _showPriceConfirmationDialog();
+            },
+          ),
+        ),
+      );
+    } catch (e) {
+      print('❌ Error navigating to video recording: $e');
+      showToast(
+        "Error navigating to video recording screen",
+        context: context,
+        animation: StyledToastAnimation.scale,
+        fullWidth: true,
+      );
+    }
+  }
+  
+  // ✅ Show price confirmation dialog after video recording
+  void _showPriceConfirmationDialog() {
+    showAlertDialogSaveData(
+        context,
+        ' هل انت متأكد من المتابعة؟  ',
+        'Are you sure you want to continue?');
   }
 
   SendOtp() async {

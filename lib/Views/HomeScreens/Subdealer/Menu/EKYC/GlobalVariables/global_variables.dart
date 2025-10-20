@@ -77,11 +77,19 @@ class GlobalVariables {
   String ekycTokenID="";
 
   String fullNameAr="";
-  String fullNameEn="";
-  String natinalityNumber="";
-  String cardNumber="";
-  String birthdate="";
-  String expirayDate="";
+  String fullNameEn=""; // Given names from passport
+  String surname=""; // Last name from passport
+  String natinalityNumber=""; // National number / Passport number
+  String cardNumber=""; // Document number
+  String birthdate=""; // Full birthdate string
+  bool SanadPassed=false; // Full birthdate string
+  String birthDay=""; // Birth day component
+  String birthMonth=""; // Birth month component
+  String birthYear=""; // Birth year component
+  String expirayDate=""; // Full expiry date string
+  String expiryDay=""; // Expiry day component
+  String expiryMonth=""; // Expiry month component
+  String expiryYear=""; // Expiry year component
   String gender="";
   String bloodGroup="";
   String registrationNumber="";

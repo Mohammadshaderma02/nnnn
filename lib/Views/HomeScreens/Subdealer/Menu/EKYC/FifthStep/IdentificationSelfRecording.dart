@@ -1200,7 +1200,7 @@ class _IdentificationSelfRecordingState extends State<IdentificationSelfRecordin
       // Send fields directly
       request.fields['extension'] = 'webm';
       request.fields['partIndex'] = '1';
-      request.fields['nationalId'] = '1234';
+      request.fields['nationalId'] =  globalVars.natinalityNumber;
       request.fields['close'] = 'true';
 
       // Add JSON as a multipart field named 'data'

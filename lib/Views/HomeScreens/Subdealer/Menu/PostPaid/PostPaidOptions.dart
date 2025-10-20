@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
+import 'package:sales_app/Views/HomeScreens/Subdealer/Menu/EKYC/GlobalVariables/global_variables.dart';
+import 'package:sales_app/Views/HomeScreens/Subdealer/Menu/EKYC/ThirdStep/Terms_Conditions.dart';
 import 'package:sales_app/Views/HomeScreens/Subdealer/Menu/PostPaid/BroadBand/BroadBand_Packages.dart';
 import 'package:sales_app/Views/HomeScreens/Subdealer/Menu/PostPaid/FTTH/ConnectionType.dart';
 import 'package:sales_app/Views/HomeScreens/Subdealer/Menu/PostPaid/FTTH/contract_details.dart';
@@ -44,8 +46,57 @@ class _PostPaidOptionsState extends State<PostPaidOptions> {
   void initState() {
     super.initState();
   }
-  @override
-
+  
+  // ✅ Always show Terms & Conditions before navigating to any PostPaid service
+  // Terms must be accepted each time before accessing a service
+  Future<void> _checkAndNavigateWithTerms(
+    BuildContext context,
+    Function onAccept,
+  ) async {
+    // Always clear terms at the start to force user to accept each time
+    setState(() {
+      globalVars.termCondition1 = false;
+      globalVars.termCondition2 = false;
+    });
+    
+    // Navigate to Terms & Conditions screen
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => Terms_Conditions(
+          onStepChanged: () {
+            // This callback is optional for PostPaid flow
+          },
+          isPostPaidFlow: true, // ✅ Indicate this is PostPaid flow
+        ),
+      ),
+    );
+    
+    // Check if both terms are now accepted after returning from Terms screen
+    if (globalVars.termCondition1 && globalVars.termCondition2) {
+      // Terms accepted, execute the callback to navigate to selected service
+      onAccept();
+      
+      // Clear terms after navigation so they need to be accepted again next time
+      Future.delayed(Duration(milliseconds: 100), () {
+        setState(() {
+          globalVars.termCondition1 = false;
+          globalVars.termCondition2 = false;
+        });
+      });
+    } else {
+      // User did not accept terms, show message
+      showToast(
+        EasyLocalization.of(context).locale == Locale("en", "US")
+            ? "You must accept Terms & Conditions to proceed"
+            : "يجب قبول الشروط والأحكام للمتابعة",
+        context: context,
+        animation: StyledToastAnimation.scale,
+        fullWidth: true,
+      );
+    }
+  }
+  
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -100,25 +151,25 @@ class _PostPaidOptionsState extends State<PostPaidOptions> {
                               : Icon(Icons.keyboard_arrow_left),
 
                         ),
-                        onTap: () {
-                     /* showToast(  EasyLocalization.of(context).locale == Locale("en", "US")
-                              ? "This service not available now "
-                              : "هذه الخدمة غير متوفرة الآن",
-                              context: context,
-                              animation: StyledToastAnimation.scale,
-                              fullWidth: true);*/
-                       setState(() {
+                        onTap: () async {
+                          setState(() {
                             packagesSelect="GSM";
                           });
-                        Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => GSMOptions(Permessions:Permessions,role:role,
+                          
+                          // ✅ Check Terms & Conditions and navigate to GSM if accepted
+                          await _checkAndNavigateWithTerms(context, () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => GSMOptions(
+                                  Permessions:Permessions,
+                                  role:role,
                                   outDoorUserName:outDoorUserName,
-                                  marketType:packagesSelect),
-                            ),
-                          );
-
+                                  marketType:packagesSelect
+                                ),
+                              ),
+                            );
+                          });
                         },
                       ),
                     ):Container(),
@@ -143,11 +194,15 @@ class _PostPaidOptionsState extends State<PostPaidOptions> {
                               : Icon(Icons.keyboard_arrow_left),
 
                         ),
-                        onTap: () {
+                        onTap: () async {
                           setState(() {
                              packagesSelect="MBB";
                            });
-                          Permessions.contains('05.02.01.00')==true?
+                          
+                          // ✅ Check Terms & Conditions and proceed to BroadBand if accepted
+                          await _checkAndNavigateWithTerms(context, () {
+                            // After terms accepted, show ZAIN/MADA dialog or navigate directly
+                            Permessions.contains('05.02.01.00')==true?
                           showDialog(
                             context: context,
                             builder: (context) {
@@ -330,6 +385,7 @@ class _PostPaidOptionsState extends State<PostPaidOptions> {
                                context: context,
                               animation: StyledToastAnimation.scale,
                                fullWidth: true);*/
+                          }); // End of _checkAndNavigateWithTerms callback
                    },
                       ),
                     ):Container(),
@@ -355,11 +411,15 @@ class _PostPaidOptionsState extends State<PostPaidOptions> {
                               : Icon(Icons.keyboard_arrow_left),
 
                         ),
-                        onTap: () {
+                        onTap: () async {
                           setState(() {
                             packagesSelect="FTTH";
                           });
-                          Permessions.contains('05.02.02.00')==true?
+                          
+                          // ✅ Check Terms & Conditions and proceed to FTTH if accepted
+                          await _checkAndNavigateWithTerms(context, () {
+                            // After terms accepted, show ZAIN/MADA dialog or navigate directly
+                            Permessions.contains('05.02.02.00')==true?
                           showDialog(
                             context: context,
                             builder: (context) {
@@ -552,7 +612,7 @@ class _PostPaidOptionsState extends State<PostPaidOptions> {
                                   marketType:packagesSelect),
                             ),
                           );*/
-
+                          }); // End of _checkAndNavigateWithTerms callback
                         },
                       ),
                     ):Container(),

@@ -11,6 +11,7 @@ import 'package:image_cropper/image_cropper.dart';
 import 'package:mime/mime.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:sales_app/Shared/BaseUrl.dart';
+import 'package:sales_app/Views/HomeScreens/Subdealer/Menu/EKYC/GlobalVariables/global_variables.dart';
 
 import 'package:sales_app/Views/ReusableComponents/requiredText.dart';
 import 'package:sales_app/blocs/CustomerService/SendOTPSCheckMSISDN/SendOTPSCheckMSISDN_bloc.dart';
@@ -44,9 +45,11 @@ import 'package:dropdown_search/dropdown_search.dart';
 
 import 'dart:io' as Io;
 import 'dart:io';
+import 'package:camera/camera.dart';
 
 import 'Contract.dart';
 import 'contract_details.dart';
+import '../PostpaidIdentificationSelfRecording.dart';
 
 class NonJordainianCustomerInformation extends StatefulWidget {
   var role;
@@ -63,15 +66,15 @@ class NonJordainianCustomerInformation extends StatefulWidget {
 
   NonJordainianCustomerInformation(
       {this.role,
-      this.outDoorUserName,
-      this.Permessions,
-      this.msisdn,
-      this.nationalNumber,
-      this.passportNumber,
-      this.userName,
-      this.password,
-      this.marketType,
-      this.packageCode});
+        this.outDoorUserName,
+        this.Permessions,
+        this.msisdn,
+        this.nationalNumber,
+        this.passportNumber,
+        this.userName,
+        this.password,
+        this.marketType,
+        this.packageCode});
 
   @override
   _NonJordainianCustomerInformationState createState() =>
@@ -282,7 +285,7 @@ class _NonJordainianCustomerInformationState
   File imageFilePassportBack;
   var pickedFilePassportBack;
   bool _loadPassportBack = false;
- // String img64PassportBack;
+  // String img64PassportBack;
   /**************************************************Ramadan Promotion**************************************************/
   bool isPromotion=false;
   String promotion;
@@ -325,10 +328,84 @@ class _NonJordainianCustomerInformationState
         BlocProvider.of<VerifyOTPSCheckMSISDNBloc>(context);
     postpaidGenerateContractBloc =
         BlocProvider.of<PostpaidGenerateContractBloc>(context);
-    PassportNumber.text = passportNumber;
+
+    // 🎯 Populate fields from parameters and globalVars (from passport OCR)
+    // For temporary passports: use nationalNumber from OCR (stored in globalVars.natinalityNumber)
+    // For regular passports: use barcode value (passportNumber parameter)
+    if (globalVars.natinalityNumber != null && 
+        globalVars.natinalityNumber.isNotEmpty && 
+        globalVars.natinalityNumber != "-") {
+      PassportNumber.text = globalVars.natinalityNumber;
+      print('🎯 Using nationalNumber from OCR for temporary passport: ${globalVars.natinalityNumber}');
+    } else {
+      PassportNumber.text = passportNumber;
+      print('🎯 Using barcode value for passport number: $passportNumber');
+    }
     MSISDN.text = msisdn;
     Password.text = password;
     UserName.text = userName;
+
+    // 🎯 Parse givenNames to extract first, second, third names
+    if (globalVars.fullNameEn.isNotEmpty) {
+      List<String> nameParts = globalVars.fullNameEn.split(' ');
+      if (nameParts.length >= 1) FirstName.text = nameParts[0];
+      if (nameParts.length >= 2) SecondName.text = nameParts[1];
+      if (nameParts.length >= 3) ThirdName.text = nameParts[2];
+    }
+
+    // 🎯 Set surname (last name)
+    if (globalVars.surname.isNotEmpty) {
+      LastName.text = globalVars.surname;
+    }
+
+    // 🎯 Set birth date components
+    if (globalVars.birthDay.isNotEmpty) day.text = globalVars.birthDay;
+    if (globalVars.birthMonth.isNotEmpty) month.text = globalVars.birthMonth;
+    if (globalVars.birthYear.isNotEmpty) {
+      // Convert 2-digit year to 4-digit (e.g., 75 -> 1975, 05 -> 2005)
+      int yearValue = int.tryParse(globalVars.birthYear) ?? 0;
+      if (yearValue < 100) {
+        yearValue = yearValue < 50 ? 2000 + yearValue : 1900 + yearValue;
+      }
+      year.text = yearValue.toString();
+    }
+
+    // 🎯 Set document expiry date
+    // Handle both ISO format ("2035-07-15") and separate day/month/year fields
+    if (globalVars.expirayDate.isNotEmpty) {
+      // Parse ISO date format: "2035-07-15" or "2035-07-15T00:00:00.000+0000"
+      try {
+        String dateStr = globalVars.expirayDate.split('T').first; // Remove time portion if exists
+        List<String> parts = dateStr.split('-'); // Split by hyphen: ["2035", "07", "15"]
+        if (parts.length == 3) {
+          String year = parts[0];
+          String month = parts[1];
+          String day = parts[2];
+          // Format as DD/MM/YYYY
+          documentExpiryDate.text = "$day/$month/$year";
+        }
+      } catch (e) {
+        print('❌ Error parsing expiry date: $e');
+      }
+    } else if (globalVars.expiryDay.isNotEmpty && globalVars.expiryMonth.isNotEmpty && globalVars.expiryYear.isNotEmpty) {
+      // Fallback: use separate day/month/year fields (for passports with MRZ)
+      int expiryYear = int.tryParse(globalVars.expiryYear) ?? 0;
+      if (expiryYear < 100) {
+        expiryYear = expiryYear < 50 ? 2000 + expiryYear : 1900 + expiryYear;
+      }
+      // Format as DD/MM/YYYY
+      String formattedExpiry = "${globalVars.expiryDay.padLeft(2, '0')}/${globalVars.expiryMonth.padLeft(2, '0')}/$expiryYear";
+      documentExpiryDate.text = formattedExpiry;
+    }
+
+    print('📝 NonJordainian Customer Info Initialized');
+    print('  - Passport Number: ${PassportNumber.text}');
+    print('  - First Name: ${FirstName.text}');
+    print('  - Second Name: ${SecondName.text}');
+    print('  - Third Name: ${ThirdName.text}');
+    print('  - Last Name: ${LastName.text}');
+    print('  - Birth Date: ${day.text}/${month.text}/${year.text}');
+    print('  - Document Expiry: ${documentExpiryDate.text}');
     print('hello');
     print(
         '${Permessions} ${passportNumber} ${msisdn} ${userName} ${password} ${marketType} ${packageCode}');
@@ -534,7 +611,7 @@ class _NonJordainianCustomerInformationState
         print("/********************************************************************/");
 
       } else {
-       // showAlertDialogERROR(context, result["messageAr"], result["message"]);
+        // showAlertDialogERROR(context, result["messageAr"], result["message"]);
         setState(() {
           //isLoadingReconnect = false;
         });
@@ -647,7 +724,7 @@ class _NonJordainianCustomerInformationState
   void clearImageIDPassportBack() {
     this.setState(() {
 
-       img64PassportBack=null;
+      img64PassportBack=null;
       _loadPassportBack = false;
       pickedFilePassportBack = null;
 
@@ -711,7 +788,7 @@ class _NonJordainianCustomerInformationState
                       ],
                     ),
                   ),
-                 SizedBox(
+                  SizedBox(
                     height: 50,
                   ),
                   role=="MadaOutdoor"?Container():  GestureDetector(
@@ -740,7 +817,7 @@ class _NonJordainianCustomerInformationState
                       ],
                     ),
                   ),
-                 SizedBox(
+                  SizedBox(
                     height: 50,
                   ),
                 ],
@@ -933,7 +1010,7 @@ class _NonJordainianCustomerInformationState
     Image image = Image.file(File(path));
     image.image.resolve(ImageConfiguration()).addListener(
       ImageStreamListener(
-        (ImageInfo image, bool synchronousCall) {
+            (ImageInfo image, bool synchronousCall) {
           var myImage = image.image;
           Size size = Size(myImage.width.toDouble(), myImage.height.toDouble());
           completer.complete(size);
@@ -1209,12 +1286,12 @@ class _NonJordainianCustomerInformationState
                         new Text(
                           "Jordan_Nationality.open_camera".tr().toString(),
                           style:
-                              TextStyle(color: Color(0xff11120e), fontSize: 14),
+                          TextStyle(color: Color(0xff11120e), fontSize: 14),
                         ),
                       ],
                     ),
                   ),
-                 SizedBox(
+                  SizedBox(
                     height: 50,
                   ),
                   role=="MadaOutdoor"?Container():  GestureDetector(
@@ -1238,12 +1315,12 @@ class _NonJordainianCustomerInformationState
                         new Text(
                           "Jordan_Nationality.Choose_photos".tr().toString(),
                           style:
-                              TextStyle(color: Color(0xff11120e), fontSize: 14),
+                          TextStyle(color: Color(0xff11120e), fontSize: 14),
                         ),
                       ],
                     ),
                   ),
-                SizedBox(
+                  SizedBox(
                     height: 50,
                   ),
                 ],
@@ -1305,12 +1382,12 @@ class _NonJordainianCustomerInformationState
                         new Text(
                           "Jordan_Nationality.open_camera".tr().toString(),
                           style:
-                              TextStyle(color: Color(0xff11120e), fontSize: 14),
+                          TextStyle(color: Color(0xff11120e), fontSize: 14),
                         ),
                       ],
                     ),
                   ),
-                   SizedBox(
+                  SizedBox(
                     height: 50,
                   ),
                   role=="MadaOutdoor"?Container():   GestureDetector(
@@ -1334,7 +1411,7 @@ class _NonJordainianCustomerInformationState
                         new Text(
                           "Jordan_Nationality.Choose_photos".tr().toString(),
                           style:
-                              TextStyle(color: Color(0xff11120e), fontSize: 14),
+                          TextStyle(color: Color(0xff11120e), fontSize: 14),
                         ),
                       ],
                     ),
@@ -1358,22 +1435,22 @@ class _NonJordainianCustomerInformationState
       child: (child));
 
   final msgTwo =
-      BlocBuilder<VerifyOTPSCheckMSISDNBloc, VerifyOTPSCheckMSISDNState>(
-          builder: (context, state) {
-    if (state is VerifyOTPSCheckMSISDNLoadingState) {
-      return Center(
-          child: Container(
-        padding: EdgeInsets.only(bottom: 0, top: 20),
-        child: Container(
-          child: CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4F2565)),
-          ),
-        ),
-      ));
-    } else {
-      return Container();
-    }
-  });
+  BlocBuilder<VerifyOTPSCheckMSISDNBloc, VerifyOTPSCheckMSISDNState>(
+      builder: (context, state) {
+        if (state is VerifyOTPSCheckMSISDNLoadingState) {
+          return Center(
+              child: Container(
+                padding: EdgeInsets.only(bottom: 0, top: 20),
+                child: Container(
+                  child: CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4F2565)),
+                  ),
+                ),
+              ));
+        } else {
+          return Container();
+        }
+      });
 
   showAlertDialog(BuildContext context, arabicMessage, englishMessage) {
     Widget tryAgainButton = TextButton(
@@ -1417,20 +1494,20 @@ class _NonJordainianCustomerInformationState
   }
 
   final msg =
-      BlocBuilder<PostpaidGenerateContractBloc, PostpaidGenerateContractState>(
-          builder: (context, state) {
-    if (state is PostpaidGenerateContractLoadingState) {
-      return Center(
-          child: Container(
-        padding: EdgeInsets.only(bottom: 10),
-        child: CircularProgressIndicator(
-          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4f2565)),
-        ),
-      ));
-    } else {
-      return Container();
-    }
-  });
+  BlocBuilder<PostpaidGenerateContractBloc, PostpaidGenerateContractState>(
+      builder: (context, state) {
+        if (state is PostpaidGenerateContractLoadingState) {
+          return Center(
+              child: Container(
+                padding: EdgeInsets.only(bottom: 10),
+                child: CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4f2565)),
+                ),
+              ));
+        } else {
+          return Container();
+        }
+      });
 
   showAlertDialogVerify(BuildContext context, arabicMessage, englishMessage) {
     Widget tryAgainButton = TextButton(
@@ -1566,6 +1643,123 @@ class _NonJordainianCustomerInformationState
     );
   }
 
+  /*****************************************************************************************************/
+  // ✅ Pre-submit validation - calls API to validate before proceeding to liveness
+  preSubmitValidation_API() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    Map test = {
+      "MarketType": this.marketType,
+      "IsJordanian": false, // Non-Jordanian
+      "NationalNo": null,
+      "PassportNo": passportNumber,
+      "PackageCode": this.packageCode,
+      "Msisdn": this.msisdn,
+      "isClaimed": claim
+    };
+
+    String body = json.encode(test);
+    var apiArea = urls.BASE_URL + '/Postpaid/preSubmitValidation';
+    final Uri url = Uri.parse(apiArea);
+    prefs.getString("accessToken");
+    final access = prefs.getString("accessToken");
+
+    final response = await http.post(
+      url,
+      headers: {
+        "content-type": "application/json",
+        "Authorization": prefs.getString("accessToken")
+      },
+      body: body,
+    );
+    int statusCode = response.statusCode;
+    var data = response.request;
+    print(statusCode);
+    print(data);
+    print(response);
+    print('body: [${response.body}]');
+
+    if (statusCode == 401) {
+      print('401  error ');
+    }
+    if (statusCode == 200) {
+      print("yes");
+      var result = json.decode(response.body);
+      print(result);
+      print('----------------Non-Jordanian FTTH PreSubmit---------------');
+      print(result["data"]);
+      if (result["data"] == null) {}
+      if (result["status"] == 0) {
+        print(result["data"]);
+        // ✅ Navigate to video recording screen instead of showing dialog
+        _navigateToVideoRecording();
+      } else {}
+
+      print('-------------------------------');
+      print('Sucses API');
+      print(urls.BASE_URL + '/Postpaid/preSubmitValidation');
+
+      return result;
+    } else {}
+  }
+  /*****************************************************************************************************/
+  
+  // ✅ Navigate to video recording screen for eKYC
+  void _navigateToVideoRecording() async {
+    try {
+      // Get available cameras
+      final cameras = await availableCameras();
+      
+      // Get eKYC session UID and token from SharedPreferences or globalVars
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      String sessionUid = globalVars.sessionUid ?? '';
+      String ekycToken = globalVars.ekycTokenID ?? '';
+      
+      print('📹 Navigating to video recording screen...');
+      print('Session UID: $sessionUid');
+      print('MSISDN: $msisdn');
+      
+      // ✅ Navigate to shared video recording screen
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => PostpaidIdentificationSelfRecording(
+            cameras: cameras,
+            sessionUid: sessionUid,
+            ekycToken: ekycToken,
+            onVideoRecorded: (videoPath, videoHash) {
+              // Video successfully recorded and uploaded
+              print('✅ Video recorded successfully!');
+              print('Video Path: $videoPath');
+              print('Video Hash: $videoHash');
+              
+              // Close video recording screen
+              Navigator.pop(context);
+              
+              // ✅ Show confirmation dialog
+              _showPriceConfirmationDialog();
+            },
+          ),
+        ),
+      );
+    } catch (e) {
+      print('❌ Error navigating to video recording: $e');
+      showToast(
+        "Error navigating to video recording screen",
+        context: context,
+        animation: StyledToastAnimation.scale,
+        fullWidth: true,
+      );
+    }
+  }
+  
+  // ✅ Show price confirmation dialog after video recording
+  void _showPriceConfirmationDialog() {
+    showAlertDialogSaveData(
+        context,
+        ' هل انت متأكد من المتابعة؟  ',
+        'Are you sure you want to continue?');
+  }
+
   SendOtp() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     var res = await http.post(
@@ -1600,52 +1794,52 @@ class _NonJordainianCustomerInformationState
               child: Column(mainAxisSize: MainAxisSize.max, children: <Widget>[
                 Expanded(
                     child: ListView(
-                        // shrinkWrap: false,
+                      // shrinkWrap: false,
                         physics: const NeverScrollableScrollPhysics(),
                         children: [
-                      SizedBox(
-                        width: double.maxFinite,
-                        height: 50,
-                        child: ListTile(
-                          contentPadding: new EdgeInsets.fromLTRB(4, 0, 4, 0),
-                          title: Text(
-                            "CustomerService.enter_OTP".tr().toString(),
-                            style: TextStyle(
-                              color: Color(0xff11120e),
-                              fontSize: 16,
+                          SizedBox(
+                            width: double.maxFinite,
+                            height: 50,
+                            child: ListTile(
+                              contentPadding: new EdgeInsets.fromLTRB(4, 0, 4, 0),
+                              title: Text(
+                                "CustomerService.enter_OTP".tr().toString(),
+                                style: TextStyle(
+                                  color: Color(0xff11120e),
+                                  fontSize: 16,
+                                ),
+                              ),
                             ),
                           ),
-                        ),
-                      ),
-                      SizedBox(
-                        height: 50,
-                        child: ListTile(
-                          contentPadding: new EdgeInsets.fromLTRB(4, 0, 4, 4),
-                          title: TextField(
-                            controller: otp,
-                            keyboardType: TextInputType.phone,
-                            decoration: InputDecoration(
-                              enabledBorder: const OutlineInputBorder(
-                                // width: 0.0 produces a thin "hairline" border
-                                borderSide: const BorderSide(
-                                    color: Color(0xFFD1D7E0), width: 1.0),
-                              ),
-                              border: const OutlineInputBorder(),
-                              focusedBorder: OutlineInputBorder(
-                                borderSide: const BorderSide(
-                                    color: Color(0xFF4F2565), width: 1.0),
-                              ),
-                              contentPadding: EdgeInsets.all(16),
-                              hintText:
+                          SizedBox(
+                            height: 50,
+                            child: ListTile(
+                              contentPadding: new EdgeInsets.fromLTRB(4, 0, 4, 4),
+                              title: TextField(
+                                controller: otp,
+                                keyboardType: TextInputType.phone,
+                                decoration: InputDecoration(
+                                  enabledBorder: const OutlineInputBorder(
+                                    // width: 0.0 produces a thin "hairline" border
+                                    borderSide: const BorderSide(
+                                        color: Color(0xFFD1D7E0), width: 1.0),
+                                  ),
+                                  border: const OutlineInputBorder(),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderSide: const BorderSide(
+                                        color: Color(0xFF4F2565), width: 1.0),
+                                  ),
+                                  contentPadding: EdgeInsets.all(16),
+                                  hintText:
                                   "CustomerService.verify_hint".tr().toString(),
-                              hintStyle: TextStyle(
-                                  color: Color(0xFFA4B0C1), fontSize: 14),
+                                  hintStyle: TextStyle(
+                                      color: Color(0xFFA4B0C1), fontSize: 14),
+                                ),
+                              ),
                             ),
                           ),
-                        ),
-                      ),
-                      msgTwo
-                    ]))
+                          msgTwo
+                        ]))
               ]),
             ),
             actions: <Widget>[
@@ -1767,52 +1961,52 @@ class _NonJordainianCustomerInformationState
               child: Column(mainAxisSize: MainAxisSize.max, children: <Widget>[
                 Expanded(
                     child: ListView(
-                        // shrinkWrap: false,
+                      // shrinkWrap: false,
                         physics: const NeverScrollableScrollPhysics(),
                         children: [
-                      SizedBox(
-                        width: double.maxFinite,
-                        height: 50,
-                        child: ListTile(
-                          contentPadding: new EdgeInsets.fromLTRB(4, 0, 4, 0),
-                          title: Text(
-                            "CustomerService.enter_OTP".tr().toString(),
-                            style: TextStyle(
-                              color: Color(0xff11120e),
-                              fontSize: 16,
+                          SizedBox(
+                            width: double.maxFinite,
+                            height: 50,
+                            child: ListTile(
+                              contentPadding: new EdgeInsets.fromLTRB(4, 0, 4, 0),
+                              title: Text(
+                                "CustomerService.enter_OTP".tr().toString(),
+                                style: TextStyle(
+                                  color: Color(0xff11120e),
+                                  fontSize: 16,
+                                ),
+                              ),
                             ),
                           ),
-                        ),
-                      ),
-                      SizedBox(
-                        height: 50,
-                        child: ListTile(
-                          contentPadding: new EdgeInsets.fromLTRB(4, 0, 4, 4),
-                          title: TextField(
-                            controller: otp,
-                            keyboardType: TextInputType.phone,
-                            decoration: InputDecoration(
-                              enabledBorder: const OutlineInputBorder(
-                                // width: 0.0 produces a thin "hairline" border
-                                borderSide: const BorderSide(
-                                    color: Color(0xFFD1D7E0), width: 1.0),
-                              ),
-                              border: const OutlineInputBorder(),
-                              focusedBorder: OutlineInputBorder(
-                                borderSide: const BorderSide(
-                                    color: Color(0xFF4F2565), width: 1.0),
-                              ),
-                              contentPadding: EdgeInsets.all(16),
-                              hintText:
+                          SizedBox(
+                            height: 50,
+                            child: ListTile(
+                              contentPadding: new EdgeInsets.fromLTRB(4, 0, 4, 4),
+                              title: TextField(
+                                controller: otp,
+                                keyboardType: TextInputType.phone,
+                                decoration: InputDecoration(
+                                  enabledBorder: const OutlineInputBorder(
+                                    // width: 0.0 produces a thin "hairline" border
+                                    borderSide: const BorderSide(
+                                        color: Color(0xFFD1D7E0), width: 1.0),
+                                  ),
+                                  border: const OutlineInputBorder(),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderSide: const BorderSide(
+                                        color: Color(0xFF4F2565), width: 1.0),
+                                  ),
+                                  contentPadding: EdgeInsets.all(16),
+                                  hintText:
                                   "CustomerService.verify_hint".tr().toString(),
-                              hintStyle: TextStyle(
-                                  color: Color(0xFFA4B0C1), fontSize: 14),
+                                  hintStyle: TextStyle(
+                                      color: Color(0xFFA4B0C1), fontSize: 14),
+                                ),
+                              ),
                             ),
                           ),
-                        ),
-                      ),
-                      msgTwo
-                    ]))
+                          msgTwo
+                        ]))
               ]),
             ),
             actions: <Widget>[
@@ -1924,8 +2118,8 @@ class _NonJordainianCustomerInformationState
           child: TextField(
             maxLength: 10,
             buildCounter: (BuildContext context,
-                    {int currentLength, int maxLength, bool isFocused}) =>
-                null,
+                {int currentLength, int maxLength, bool isFocused}) =>
+            null,
             controller: PassportNumber,
             enabled: false,
             keyboardType: TextInputType.phone,
@@ -1937,7 +2131,7 @@ class _NonJordainianCustomerInformationState
                   borderSide: BorderSide(width: 1, color: Color(0xFFD1D7E0))),
               focusedBorder: OutlineInputBorder(
                 borderSide:
-                    const BorderSide(color: Color(0xFF4f2565), width: 1.0),
+                const BorderSide(color: Color(0xFF4f2565), width: 1.0),
               ),
               fillColor: Color(0xFFEBECF1),
               filled: true,
@@ -1970,8 +2164,8 @@ class _NonJordainianCustomerInformationState
           child: TextField(
             maxLength: 10,
             buildCounter: (BuildContext context,
-                    {int currentLength, int maxLength, bool isFocused}) =>
-                null,
+                {int currentLength, int maxLength, bool isFocused}) =>
+            null,
             controller: MSISDN,
             enabled: false,
             keyboardType: TextInputType.phone,
@@ -1983,7 +2177,7 @@ class _NonJordainianCustomerInformationState
                   borderSide: BorderSide(width: 1, color: Color(0xFFD1D7E0))),
               focusedBorder: OutlineInputBorder(
                 borderSide:
-                    const BorderSide(color: Color(0xFF4f2565), width: 1.0),
+                const BorderSide(color: Color(0xFF4f2565), width: 1.0),
               ),
               fillColor: Color(0xFFEBECF1),
               filled: true,
@@ -2031,19 +2225,19 @@ class _NonJordainianCustomerInformationState
               decoration: InputDecoration(
                 enabledBorder: emptyUserName == true
                     ? const OutlineInputBorder(
-                        // width: 0.0 produces a thin "hairline" border
-                        borderSide: const BorderSide(
-                            color: Color(0xFFB10000), width: 1.0),
-                      )
+                  // width: 0.0 produces a thin "hairline" border
+                  borderSide: const BorderSide(
+                      color: Color(0xFFB10000), width: 1.0),
+                )
                     : const OutlineInputBorder(
-                        // width: 0.0 produces a thin "hairline" border
-                        borderSide: const BorderSide(
-                            color: Color(0xFFD1D7E0), width: 1.0),
-                      ),
+                  // width: 0.0 produces a thin "hairline" border
+                  borderSide: const BorderSide(
+                      color: Color(0xFFD1D7E0), width: 1.0),
+                ),
                 border: const OutlineInputBorder(),
                 focusedBorder: OutlineInputBorder(
                   borderSide:
-                      const BorderSide(color: Color(0xFF4F2565), width: 1.0),
+                  const BorderSide(color: Color(0xFF4F2565), width: 1.0),
                 ),
                 contentPadding: EdgeInsets.all(16),
                 hintText: "Postpaid.userName".tr().toString(),
@@ -2087,8 +2281,8 @@ class _NonJordainianCustomerInformationState
           child: TextField(
             maxLength: 10,
             buildCounter: (BuildContext context,
-                    {int currentLength, int maxLength, bool isFocused}) =>
-                null,
+                {int currentLength, int maxLength, bool isFocused}) =>
+            null,
             controller: Password,
             enabled: true,
             keyboardType: TextInputType.phone,
@@ -2096,19 +2290,19 @@ class _NonJordainianCustomerInformationState
             decoration: InputDecoration(
               enabledBorder: emptyPassword == true
                   ? const OutlineInputBorder(
-                      // width: 0.0 produces a thin "hairline" border
-                      borderSide: const BorderSide(
-                          color: Color(0xFFB10000), width: 1.0),
-                    )
+                // width: 0.0 produces a thin "hairline" border
+                borderSide: const BorderSide(
+                    color: Color(0xFFB10000), width: 1.0),
+              )
                   : const OutlineInputBorder(
-                      // width: 0.0 produces a thin "hairline" border
-                      borderSide: const BorderSide(
-                          color: Color(0xFFD1D7E0), width: 1.0),
-                    ),
+                // width: 0.0 produces a thin "hairline" border
+                borderSide: const BorderSide(
+                    color: Color(0xFFD1D7E0), width: 1.0),
+              ),
               border: const OutlineInputBorder(),
               focusedBorder: OutlineInputBorder(
                 borderSide:
-                    const BorderSide(color: Color(0xFF4F2565), width: 1.0),
+                const BorderSide(color: Color(0xFF4F2565), width: 1.0),
               ),
               contentPadding: EdgeInsets.all(16),
               hintText: "Postpaid.password".tr().toString(),
@@ -2150,26 +2344,30 @@ class _NonJordainianCustomerInformationState
           height: 58,
           child: TextField(
             controller: FirstName,
-            enabled: true,
+            enabled: FirstName.text.isEmpty, // 🔒 Disable if populated from passport OCR
             keyboardType: TextInputType.name,
-            style: TextStyle(color: Color(0xff11120e)),
+            style: TextStyle(color: FirstName.text.isEmpty ? Color(0xff11120e) : Color(0xFF5A6F84)),
             decoration: InputDecoration(
               enabledBorder: emptyFirstName == true
                   ? const OutlineInputBorder(
-                      // width: 0.0 produces a thin "hairline" border
-                      borderSide: const BorderSide(
-                          color: Color(0xFFB10000), width: 1.0),
-                    )
+                // width: 0.0 produces a thin "hairline" border
+                borderSide: const BorderSide(
+                    color: Color(0xFFB10000), width: 1.0),
+              )
                   : const OutlineInputBorder(
-                      // width: 0.0 produces a thin "hairline" border
-                      borderSide: const BorderSide(
-                          color: Color(0xFFD1D7E0), width: 1.0),
-                    ),
+                // width: 0.0 produces a thin "hairline" border
+                borderSide: const BorderSide(
+                    color: Color(0xFFD1D7E0), width: 1.0),
+              ),
               border: const OutlineInputBorder(),
+              disabledBorder: OutlineInputBorder(
+                  borderSide: BorderSide(width: 1, color: Color(0xFFD1D7E0))),
               focusedBorder: OutlineInputBorder(
                 borderSide:
-                    const BorderSide(color: Color(0xFF4F2565), width: 1.0),
+                const BorderSide(color: Color(0xFF4F2565), width: 1.0),
               ),
+              fillColor: FirstName.text.isEmpty ? Colors.white : Color(0xFFEBECF1),
+              filled: true,
               contentPadding: EdgeInsets.all(16),
               hintText: "Postpaid.enter_first_name".tr().toString(),
               hintStyle: TextStyle(color: Color(0xFFA4B0C1), fontSize: 14),
@@ -2200,26 +2398,30 @@ class _NonJordainianCustomerInformationState
           height: 58,
           child: TextField(
             controller: SecondName,
-            enabled: true,
+            enabled: SecondName.text.isEmpty, // 🔒 Disable if populated from passport OCR
             keyboardType: TextInputType.name,
-            style: TextStyle(color: Color(0xff11120e)),
+            style: TextStyle(color: SecondName.text.isEmpty ? Color(0xff11120e) : Color(0xFF5A6F84)),
             decoration: InputDecoration(
               enabledBorder: emptySecondName == true
                   ? const OutlineInputBorder(
-                      // width: 0.0 produces a thin "hairline" border
-                      borderSide: const BorderSide(
-                          color: Color(0xFFB10000), width: 1.0),
-                    )
+                // width: 0.0 produces a thin "hairline" border
+                borderSide: const BorderSide(
+                    color: Color(0xFFB10000), width: 1.0),
+              )
                   : const OutlineInputBorder(
-                      // width: 0.0 produces a thin "hairline" border
-                      borderSide: const BorderSide(
-                          color: Color(0xFFD1D7E0), width: 1.0),
-                    ),
+                // width: 0.0 produces a thin "hairline" border
+                borderSide: const BorderSide(
+                    color: Color(0xFFD1D7E0), width: 1.0),
+              ),
               border: const OutlineInputBorder(),
+              disabledBorder: OutlineInputBorder(
+                  borderSide: BorderSide(width: 1, color: Color(0xFFD1D7E0))),
               focusedBorder: OutlineInputBorder(
                 borderSide:
-                    const BorderSide(color: Color(0xFF4F2565), width: 1.0),
+                const BorderSide(color: Color(0xFF4F2565), width: 1.0),
               ),
+              fillColor: SecondName.text.isEmpty ? Colors.white : Color(0xFFEBECF1),
+              filled: true,
               contentPadding: EdgeInsets.all(16),
               hintText: "Postpaid.enter_second_name".tr().toString(),
               hintStyle: TextStyle(color: Color(0xFFA4B0C1), fontSize: 14),
@@ -2250,26 +2452,30 @@ class _NonJordainianCustomerInformationState
           height: 58,
           child: TextField(
             controller: ThirdName,
-            enabled: true,
+            enabled: ThirdName.text.isEmpty, // 🔒 Disable if populated from passport OCR
             keyboardType: TextInputType.name,
-            style: TextStyle(color: Color(0xff11120e)),
+            style: TextStyle(color: ThirdName.text.isEmpty ? Color(0xff11120e) : Color(0xFF5A6F84)),
             decoration: InputDecoration(
               enabledBorder: emptyThirdName == true
                   ? const OutlineInputBorder(
-                      // width: 0.0 produces a thin "hairline" border
-                      borderSide: const BorderSide(
-                          color: Color(0xFFB10000), width: 1.0),
-                    )
+                // width: 0.0 produces a thin "hairline" border
+                borderSide: const BorderSide(
+                    color: Color(0xFFB10000), width: 1.0),
+              )
                   : const OutlineInputBorder(
-                      // width: 0.0 produces a thin "hairline" border
-                      borderSide: const BorderSide(
-                          color: Color(0xFFD1D7E0), width: 1.0),
-                    ),
+                // width: 0.0 produces a thin "hairline" border
+                borderSide: const BorderSide(
+                    color: Color(0xFFD1D7E0), width: 1.0),
+              ),
               border: const OutlineInputBorder(),
+              disabledBorder: OutlineInputBorder(
+                  borderSide: BorderSide(width: 1, color: Color(0xFFD1D7E0))),
               focusedBorder: OutlineInputBorder(
                 borderSide:
-                    const BorderSide(color: Color(0xFF4F2565), width: 1.0),
+                const BorderSide(color: Color(0xFF4F2565), width: 1.0),
               ),
+              fillColor: ThirdName.text.isEmpty ? Colors.white : Color(0xFFEBECF1),
+              filled: true,
               contentPadding: EdgeInsets.all(16),
               hintText: "Postpaid.enter_third_name".tr().toString(),
               hintStyle: TextStyle(color: Color(0xFFA4B0C1), fontSize: 14),
@@ -2310,26 +2516,30 @@ class _NonJordainianCustomerInformationState
           height: 58,
           child: TextField(
             controller: LastName,
-            enabled: true,
+            enabled: LastName.text.isEmpty, // 🔒 Disable if populated from passport OCR
             keyboardType: TextInputType.name,
-            style: TextStyle(color: Color(0xff11120e)),
+            style: TextStyle(color: LastName.text.isEmpty ? Color(0xff11120e) : Color(0xFF5A6F84)),
             decoration: InputDecoration(
               enabledBorder: emptyLastName == true
                   ? const OutlineInputBorder(
-                      // width: 0.0 produces a thin "hairline" border
-                      borderSide: const BorderSide(
-                          color: Color(0xFFB10000), width: 1.0),
-                    )
+                // width: 0.0 produces a thin "hairline" border
+                borderSide: const BorderSide(
+                    color: Color(0xFFB10000), width: 1.0),
+              )
                   : const OutlineInputBorder(
-                      // width: 0.0 produces a thin "hairline" border
-                      borderSide: const BorderSide(
-                          color: Color(0xFFD1D7E0), width: 1.0),
-                    ),
+                // width: 0.0 produces a thin "hairline" border
+                borderSide: const BorderSide(
+                    color: Color(0xFFD1D7E0), width: 1.0),
+              ),
               border: const OutlineInputBorder(),
+              disabledBorder: OutlineInputBorder(
+                  borderSide: BorderSide(width: 1, color: Color(0xFFD1D7E0))),
               focusedBorder: OutlineInputBorder(
                 borderSide:
-                    const BorderSide(color: Color(0xFF4F2565), width: 1.0),
+                const BorderSide(color: Color(0xFF4F2565), width: 1.0),
               ),
+              fillColor: LastName.text.isEmpty ? Colors.white : Color(0xFFEBECF1),
+              filled: true,
               contentPadding: EdgeInsets.all(16),
               hintText: "Postpaid.enter_last_name".tr().toString(),
               hintStyle: TextStyle(color: Color(0xFFA4B0C1), fontSize: 14),
@@ -2376,33 +2586,38 @@ class _NonJordainianCustomerInformationState
                       width: 90,
                       child: TextField(
                         controller: day,
+                        enabled: day.text.isEmpty, // 🔒 Disable if populated from passport OCR
                         maxLength: 2,
                         keyboardType: TextInputType.datetime,
-                        style: TextStyle(color: Color(0xff11120e)),
+                        style: TextStyle(color: day.text.isEmpty ? Color(0xff11120e) : Color(0xFF5A6F84)),
                         decoration: InputDecoration(
                           counterText: '',
                           enabledBorder: emptyDay == true ||
-                                  errorDay == true ||
-                                  birthDateValid == false
+                              errorDay == true ||
+                              birthDateValid == false
                               ? const OutlineInputBorder(
-                                  // width: 0.0 produces a thin "hairline" border
-                                  borderSide: const BorderSide(
-                                      color: Color(0xFFB10000), width: 1.0),
-                                )
+                            // width: 0.0 produces a thin "hairline" border
+                            borderSide: const BorderSide(
+                                color: Color(0xFFB10000), width: 1.0),
+                          )
                               : const OutlineInputBorder(
-                                  // width: 0.0 produces a thin "hairline" border
-                                  borderSide: const BorderSide(
-                                      color: Color(0xFFD1D7E0), width: 1.0),
-                                ),
+                            // width: 0.0 produces a thin "hairline" border
+                            borderSide: const BorderSide(
+                                color: Color(0xFFD1D7E0), width: 1.0),
+                          ),
                           border: const OutlineInputBorder(),
+                          disabledBorder: OutlineInputBorder(
+                              borderSide: BorderSide(width: 1, color: Color(0xFFD1D7E0))),
                           focusedBorder: OutlineInputBorder(
                             borderSide: const BorderSide(
                                 color: Color(0xFF4f2565), width: 1.0),
                           ),
+                          fillColor: day.text.isEmpty ? Colors.white : Color(0xFFEBECF1),
+                          filled: true,
                           contentPadding: EdgeInsets.all(16),
                           hintText: "Non_Jordan_Nationality.dd".tr().toString(),
                           hintStyle:
-                              TextStyle(color: Color(0xFFA4B0C1), fontSize: 14),
+                          TextStyle(color: Color(0xFFA4B0C1), fontSize: 14),
                         ),
                       ),
                     ),
@@ -2411,33 +2626,38 @@ class _NonJordainianCustomerInformationState
                       width: 90,
                       child: TextField(
                         controller: month,
+                        enabled: month.text.isEmpty, // 🔒 Disable if populated from passport OCR
                         maxLength: 2,
                         keyboardType: TextInputType.datetime,
-                        style: TextStyle(color: Color(0xff11120e)),
+                        style: TextStyle(color: month.text.isEmpty ? Color(0xff11120e) : Color(0xFF5A6F84)),
                         decoration: InputDecoration(
                           counterText: '',
                           enabledBorder: emptyMonth == true ||
-                                  errorMonthe == true ||
-                                  birthDateValid == false
+                              errorMonthe == true ||
+                              birthDateValid == false
                               ? const OutlineInputBorder(
-                                  // width: 0.0 produces a thin "hairline" border
-                                  borderSide: const BorderSide(
-                                      color: Color(0xFFB10000), width: 1.0),
-                                )
+                            // width: 0.0 produces a thin "hairline" border
+                            borderSide: const BorderSide(
+                                color: Color(0xFFB10000), width: 1.0),
+                          )
                               : const OutlineInputBorder(
-                                  // width: 0.0 produces a thin "hairline" border
-                                  borderSide: const BorderSide(
-                                      color: Color(0xFFD1D7E0), width: 1.0),
-                                ),
+                            // width: 0.0 produces a thin "hairline" border
+                            borderSide: const BorderSide(
+                                color: Color(0xFFD1D7E0), width: 1.0),
+                          ),
                           border: const OutlineInputBorder(),
+                          disabledBorder: OutlineInputBorder(
+                              borderSide: BorderSide(width: 1, color: Color(0xFFD1D7E0))),
                           focusedBorder: OutlineInputBorder(
                             borderSide: const BorderSide(
                                 color: Color(0xFF4f2565), width: 1.0),
                           ),
+                          fillColor: month.text.isEmpty ? Colors.white : Color(0xFFEBECF1),
+                          filled: true,
                           contentPadding: EdgeInsets.all(16),
                           hintText: "Non_Jordan_Nationality.mm".tr().toString(),
                           hintStyle:
-                              TextStyle(color: Color(0xFFA4B0C1), fontSize: 14),
+                          TextStyle(color: Color(0xFFA4B0C1), fontSize: 14),
                         ),
                       ),
                     ),
@@ -2446,33 +2666,38 @@ class _NonJordainianCustomerInformationState
                       width: 150,
                       child: TextField(
                         controller: year,
+                        enabled: year.text.isEmpty, // 🔒 Disable if populated from passport OCR
                         maxLength: 4,
                         keyboardType: TextInputType.datetime,
-                        style: TextStyle(color: Color(0xff11120e)),
+                        style: TextStyle(color: year.text.isEmpty ? Color(0xff11120e) : Color(0xFF5A6F84)),
                         decoration: InputDecoration(
                           counterText: '',
                           enabledBorder:
-                              emptyYear == true || birthDateValid == false
-                                  ? const OutlineInputBorder(
-                                      // width: 0.0 produces a thin "hairline" border
-                                      borderSide: const BorderSide(
-                                          color: Color(0xFFB10000), width: 1.0),
-                                    )
-                                  : const OutlineInputBorder(
-                                      // width: 0.0 produces a thin "hairline" border
-                                      borderSide: const BorderSide(
-                                          color: Color(0xFFD1D7E0), width: 1.0),
-                                    ),
+                          emptyYear == true || birthDateValid == false
+                              ? const OutlineInputBorder(
+                            // width: 0.0 produces a thin "hairline" border
+                            borderSide: const BorderSide(
+                                color: Color(0xFFB10000), width: 1.0),
+                          )
+                              : const OutlineInputBorder(
+                            // width: 0.0 produces a thin "hairline" border
+                            borderSide: const BorderSide(
+                                color: Color(0xFFD1D7E0), width: 1.0),
+                          ),
                           border: const OutlineInputBorder(),
+                          disabledBorder: OutlineInputBorder(
+                              borderSide: BorderSide(width: 1, color: Color(0xFFD1D7E0))),
                           focusedBorder: OutlineInputBorder(
                             borderSide: const BorderSide(
                                 color: Color(0xFF4f2565), width: 1.0),
                           ),
+                          fillColor: year.text.isEmpty ? Colors.white : Color(0xFFEBECF1),
+                          filled: true,
                           contentPadding: EdgeInsets.all(16),
                           hintText:
-                              "Non_Jordan_Nationality.yyyy".tr().toString(),
+                          "Non_Jordan_Nationality.yyyy".tr().toString(),
                           hintStyle:
-                              TextStyle(color: Color(0xFFA4B0C1), fontSize: 14),
+                          TextStyle(color: Color(0xFFA4B0C1), fontSize: 14),
                         ),
                       ),
                     ),
@@ -2485,19 +2710,19 @@ class _NonJordainianCustomerInformationState
         ),
         emptyDay || emptyMonth || emptyYear == true
             ? ReusableRequiredText(
-                text: "Postpaid.this_feild_is_required".tr().toString())
+            text: "Postpaid.this_feild_is_required".tr().toString())
             : Container(),
         errorDay == true || errorMonthe == true || errorYear == true
             ? ReusableRequiredText(
-                text: EasyLocalization.of(context).locale == Locale("en", "US")
-                    ? "Please enter birth date correctly"
-                    : "الرجاء إدخال تاريخ الميلاد بشكل صحيح")
+            text: EasyLocalization.of(context).locale == Locale("en", "US")
+                ? "Please enter birth date correctly"
+                : "الرجاء إدخال تاريخ الميلاد بشكل صحيح")
             : Container(),
         birthDateValid == false
             ? ReusableRequiredText(
-                text: EasyLocalization.of(context).locale == Locale("en", "US")
-                    ? "Your age less than 18"
-                    : "العمر أقل من 18")
+            text: EasyLocalization.of(context).locale == Locale("en", "US")
+                ? "Your age less than 18"
+                : "العمر أقل من 18")
             : Container(),
         SizedBox(
           height: 20,
@@ -2558,8 +2783,8 @@ class _NonJordainianCustomerInformationState
               }
             },
             buildCounter: (BuildContext context,
-                    {int currentLength, int maxLength, bool isFocused}) =>
-                null,
+                {int currentLength, int maxLength, bool isFocused}) =>
+            null,
             keyboardType: TextInputType.phone,
             /*    inputFormatters: [
                                 FilteringTextInputFormatter.deny(RegExp('[a-z A-Z á-ú Á-Ú]')),
@@ -2567,21 +2792,21 @@ class _NonJordainianCustomerInformationState
             style: TextStyle(color: Color(0xff11120e)),
             decoration: InputDecoration(
               enabledBorder:
-                  emptyReferenceNumber == true || errorReferenceNumber == true
-                      ? const OutlineInputBorder(
-                          // width: 0.0 produces a thin "hairline" border
-                          borderSide: const BorderSide(
-                              color: Color(0xFFB10000), width: 1.0),
-                        )
-                      : const OutlineInputBorder(
-                          // width: 0.0 produces a thin "hairline" border
-                          borderSide: const BorderSide(
-                              color: Color(0xFFD1D7E0), width: 1.0),
-                        ),
+              emptyReferenceNumber == true || errorReferenceNumber == true
+                  ? const OutlineInputBorder(
+                // width: 0.0 produces a thin "hairline" border
+                borderSide: const BorderSide(
+                    color: Color(0xFFB10000), width: 1.0),
+              )
+                  : const OutlineInputBorder(
+                // width: 0.0 produces a thin "hairline" border
+                borderSide: const BorderSide(
+                    color: Color(0xFFD1D7E0), width: 1.0),
+              ),
               border: const OutlineInputBorder(),
               focusedBorder: OutlineInputBorder(
                 borderSide:
-                    const BorderSide(color: Color(0xFF4F2565), width: 1.0),
+                const BorderSide(color: Color(0xFF4F2565), width: 1.0),
               ),
               contentPadding: EdgeInsets.all(16),
               hintText: "Postpaid.enter_reference_number".tr().toString(),
@@ -2639,8 +2864,8 @@ class _NonJordainianCustomerInformationState
               }
             },
             buildCounter: (BuildContext context,
-                    {int currentLength, int maxLength, bool isFocused}) =>
-                null,
+                {int currentLength, int maxLength, bool isFocused}) =>
+            null,
             keyboardType: TextInputType.phone,
             inputFormatters: [
               FilteringTextInputFormatter.deny(RegExp('[a-z A-Z á-ú Á-Ú]')),
@@ -2648,22 +2873,22 @@ class _NonJordainianCustomerInformationState
             style: TextStyle(color: Color(0xff11120e)),
             decoration: InputDecoration(
               enabledBorder: emptySecondReferenceNumber == true ||
-                      errorSecondReferenceNumber == true ||
-                      duplicateSecondReferenceNumber == true
+                  errorSecondReferenceNumber == true ||
+                  duplicateSecondReferenceNumber == true
                   ? const OutlineInputBorder(
-                      // width: 0.0 produces a thin "hairline" border
-                      borderSide: const BorderSide(
-                          color: Color(0xFFB10000), width: 1.0),
-                    )
+                // width: 0.0 produces a thin "hairline" border
+                borderSide: const BorderSide(
+                    color: Color(0xFFB10000), width: 1.0),
+              )
                   : const OutlineInputBorder(
-                      // width: 0.0 produces a thin "hairline" border
-                      borderSide: const BorderSide(
-                          color: Color(0xFFD1D7E0), width: 1.0),
-                    ),
+                // width: 0.0 produces a thin "hairline" border
+                borderSide: const BorderSide(
+                    color: Color(0xFFD1D7E0), width: 1.0),
+              ),
               border: const OutlineInputBorder(),
               focusedBorder: OutlineInputBorder(
                 borderSide:
-                    const BorderSide(color: Color(0xFF4F2565), width: 1.0),
+                const BorderSide(color: Color(0xFF4F2565), width: 1.0),
               ),
               contentPadding: EdgeInsets.all(16),
               hintText: "Postpaid.enter_reference_number".tr().toString(),
@@ -2710,8 +2935,9 @@ class _NonJordainianCustomerInformationState
           child: TextField(
             controller: documentExpiryDate,
             readOnly: true,
+            enabled: documentExpiryDate.text.isEmpty, // 🔒 Disable if populated from passport OCR
             keyboardType: TextInputType.name,
-            style: TextStyle(color: Color(0xff11120e)),
+            style: TextStyle(color: documentExpiryDate.text.isEmpty ? Color(0xff11120e) : Color(0xFF5A6F84)),
             decoration: new InputDecoration(
               enabledBorder: emptyDocumentExpiryDate == true
                   ? const OutlineInputBorder(
@@ -2725,19 +2951,23 @@ class _NonJordainianCustomerInformationState
                     color: Color(0xFFD1D7E0), width: 1.0),
               ),
               border: const OutlineInputBorder(),
+              disabledBorder: OutlineInputBorder(
+                  borderSide: BorderSide(width: 1, color: Color(0xFFD1D7E0))),
               focusedBorder: OutlineInputBorder(
                 borderSide:
                 const BorderSide(color: Color(0xFF4f2565), width: 1.0),
               ),
+              fillColor: documentExpiryDate.text.isEmpty ? Colors.white : Color(0xFFEBECF1),
+              filled: true,
               contentPadding: EdgeInsets.all(16),
-              suffixIcon: Container(
+              suffixIcon: documentExpiryDate.text.isEmpty ? Container(
                 child: IconButton(
                     icon: new Image.asset("assets/images/icon-calendar.png"),
                     onPressed: () async {
                       showDatePicker(
                         context: context,
                         firstDate: DateTime.now(),
-                      //  firstDate: DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day - 60),
+                        //  firstDate: DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day - 60),
                         initialDate: DateTime.now(),
                         lastDate:DateTime(DateTime.now().year+20,
                         ),
@@ -2768,7 +2998,7 @@ class _NonJordainianCustomerInformationState
                         }),
                       });
                     }),
-              ),
+              ) : null, // 🔒 Hide calendar icon if date already populated
               hintText: "Test.dd/mm/yyyy".tr().toString(),
               hintStyle: TextStyle(color: Color(0xffa4b0c1), fontSize: 14),
             ),
@@ -2812,8 +3042,8 @@ class _NonJordainianCustomerInformationState
             controller: mbbMsisdn,
             maxLength: 10,
             buildCounter: (BuildContext context,
-                    {int currentLength, int maxLength, bool isFocused}) =>
-                null,
+                {int currentLength, int maxLength, bool isFocused}) =>
+            null,
             keyboardType: TextInputType.phone,
             inputFormatters: [
               FilteringTextInputFormatter.deny(RegExp('[a-z A-Z á-ú Á-Ú]')),
@@ -2822,19 +3052,19 @@ class _NonJordainianCustomerInformationState
             decoration: InputDecoration(
               enabledBorder: emptyMBBMSISDN == true
                   ? const OutlineInputBorder(
-                      // width: 0.0 produces a thin "hairline" border
-                      borderSide: const BorderSide(
-                          color: Color(0xFFB10000), width: 1.0),
-                    )
+                // width: 0.0 produces a thin "hairline" border
+                borderSide: const BorderSide(
+                    color: Color(0xFFB10000), width: 1.0),
+              )
                   : const OutlineInputBorder(
-                      // width: 0.0 produces a thin "hairline" border
-                      borderSide: const BorderSide(
-                          color: Color(0xFFD1D7E0), width: 1.0),
-                    ),
+                // width: 0.0 produces a thin "hairline" border
+                borderSide: const BorderSide(
+                    color: Color(0xFFD1D7E0), width: 1.0),
+              ),
               border: const OutlineInputBorder(),
               focusedBorder: OutlineInputBorder(
                 borderSide:
-                    const BorderSide(color: Color(0xFF4F2565), width: 1.0),
+                const BorderSide(color: Color(0xFF4F2565), width: 1.0),
               ),
               contentPadding: EdgeInsets.all(16),
               hintText: "Postpaid.enter_migration_number".tr().toString(),
@@ -2892,188 +3122,185 @@ class _NonJordainianCustomerInformationState
                 padding: EdgeInsets.only(left: 10, right: 5),
                 child: _loadPassport == true
                     ? Column(
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                width: 180,
-                                height: 235,
-                                decoration: BoxDecoration(
-                                    color: Colors.black,
-                                    image: DecorationImage(
-                                      colorFilter: new ColorFilter.mode(
-                                          Colors.black.withOpacity(0.5),
-                                          BlendMode.dstATop),
-                                      image: FileImage(imageFilePassport),
-                                      fit: BoxFit.cover,
-                                    )),
-                                child: new Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 180,
+                          height: 235,
+                          decoration: BoxDecoration(
+                              color: Colors.black,
+                              image: DecorationImage(
+                                colorFilter: new ColorFilter.mode(
+                                    Colors.black.withOpacity(0.5),
+                                    BlendMode.dstATop),
+                                image: FileImage(imageFilePassport),
+                                fit: BoxFit.cover,
+                              )),
+                          child: new Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: <Widget>[
+                                Center(
+                                  child: new Column(
+                                    mainAxisAlignment:
+                                    MainAxisAlignment.center,
                                     children: <Widget>[
-                                      Center(
-                                        child: new Column(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          children: <Widget>[
-                                            new Container(
-                                              child: Image(
-                                                image: AssetImage(
-                                                    'assets/images/iconCheck.png'),
-                                                fit: BoxFit.cover,
-                                                height: 24.0,
-                                              ),
-                                            ),
-                                            SizedBox(height: 10),
-                                            new Container(
-                                              child: GestureDetector(
-                                                onTap: () async {
-                                                  FocusScope.of(context)
-                                                      .unfocus();
-                                                  showDialog(
-                                                      context: context,
-                                                      builder: (_) => Center(
-                                                              // Aligns the container to center
-                                                              child: Container(
-                                                            child: PhotoView(
-                                                              enableRotation:
-                                                                  true,
-                                                              backgroundDecoration:
-                                                                  BoxDecoration(
-                                                                      color: Colors
-                                                                          .transparent),
-                                                              imageProvider:
-                                                                  FileImage(
-                                                                      imageFilePassport),
-                                                            ),
-                                                            // A simplified version of dialog.
-                                                            width: 310.0,
-                                                            height: 500.0,
-                                                          )));
-                                                },
-                                                child: Align(
-                                                  alignment: Alignment.center,
-                                                  child: Text(
-                                                    "Jordan_Nationality.preview_photo"
-                                                        .tr()
-                                                        .toString(),
-                                                    textAlign: TextAlign.center,
-                                                    style: TextStyle(
-                                                      color: Color(0xFFffffff),
-                                                      fontSize: 16,
-                                                      fontWeight:
-                                                          FontWeight.w600,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                          ],
+                                      new Container(
+                                        child: Image(
+                                          image: AssetImage(
+                                              'assets/images/iconCheck.png'),
+                                          fit: BoxFit.cover,
+                                          height: 24.0,
                                         ),
                                       ),
-                                    ]),
-                              ),
-                            ],
-                          ),
-                          new Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: <Widget>[
-                              new Container(
-                                width: 170,
-                                padding: EdgeInsets.only(top: 15),
-                                child: GestureDetector(
-                                  onTap: () {
-                                    FocusScope.of(context).unfocus();
-                                    _showPickerPassport(context);
-                                  },
-                                  child: Align(
-                                    alignment: Alignment.center,
-                                    child: Text(
-                                      "Jordan_Nationality.re_take_photo"
-                                          .tr()
-                                          .toString(),
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        color: Color(0xFF0070c9),
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      )
-                    : buildDashedBorder(
-                        child: InkWell(
-                          onTap: () {
-                            FocusScope.of(context).unfocus();
-                            _showPickerPassport(context);
-                          },
-                          child: Container(
-                            width: 180,
-                            height: 235,
-                            child: GestureDetector(
-                              child: Align(
-                                alignment: Alignment.center,
-                                child: Align(
-                                  alignment: Alignment.center,
-                                  child: EasyLocalization.of(context).locale ==
-                                          Locale("en", "US")
-                                      ? Column(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          children: [
-                                            Text(
-                                              "Jordan_Nationality.take_photo1"
+                                      SizedBox(height: 10),
+                                      new Container(
+                                        child: GestureDetector(
+                                          onTap: () async {
+                                            FocusScope.of(context)
+                                                .unfocus();
+                                            showDialog(
+                                                context: context,
+                                                builder: (_) => Center(
+                                                  // Aligns the container to center
+                                                    child: Container(
+                                                      child: PhotoView(
+                                                        enableRotation:
+                                                        true,
+                                                        backgroundDecoration:
+                                                        BoxDecoration(
+                                                            color: Colors
+                                                                .transparent),
+                                                        imageProvider:
+                                                        FileImage(
+                                                            imageFilePassport),
+                                                      ),
+                                                      // A simplified version of dialog.
+                                                      width: 310.0,
+                                                      height: 500.0,
+                                                    )));
+                                          },
+                                          child: Align(
+                                            alignment: Alignment.center,
+                                            child: Text(
+                                              "Jordan_Nationality.preview_photo"
                                                   .tr()
                                                   .toString(),
                                               textAlign: TextAlign.center,
                                               style: TextStyle(
-                                                color: Color(0xFF0070c9),
+                                                color: Color(0xFFffffff),
                                                 fontSize: 16,
-                                                fontWeight: FontWeight.w600,
+                                                fontWeight:
+                                                FontWeight.w600,
                                               ),
                                             ),
-                                            Text(
-                                              "Jordan_Nationality.take_photo2"
-                                                  .tr()
-                                                  .toString(),
-                                              textAlign: TextAlign.center,
-                                              style: TextStyle(
-                                                color: Color(0xFF0070c9),
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            )
-                                          ],
-                                        )
-                                      : Text(
-                                          "Jordan_Nationality.take_photo1"
-                                              .tr()
-                                              .toString(),
-                                          textAlign: TextAlign.center,
-                                          style: TextStyle(
-                                            color: Color(0xFF0070c9),
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.w600,
                                           ),
                                         ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ]),
+                        ),
+                      ],
+                    ),
+                    new Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: <Widget>[
+                        new Container(
+                          width: 170,
+                          padding: EdgeInsets.only(top: 15),
+                          child: GestureDetector(
+                            onTap: () {
+                              FocusScope.of(context).unfocus();
+                              _showPickerPassport(context);
+                            },
+                            child: Align(
+                              alignment: Alignment.center,
+                              child: Text(
+                                "Jordan_Nationality.re_take_photo"
+                                    .tr()
+                                    .toString(),
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: Color(0xFF0070c9),
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
                             ),
                           ),
                         ),
+                      ],
+                    ),
+                  ],
+                )
+                    : buildDashedBorder(
+                  child: InkWell(
+                    onTap: () {
+                      FocusScope.of(context).unfocus();
+                      _showPickerPassport(context);
+                    },
+                    child: Container(
+                      width: 180,
+                      height: 235,
+                      child: GestureDetector(
+                        child: Align(
+                          alignment: Alignment.center,
+                          child: Align(
+                            alignment: Alignment.center,
+                            child: EasyLocalization.of(context).locale ==
+                                Locale("en", "US")
+                                ? Column(
+                              mainAxisAlignment:
+                              MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  "Jordan_Nationality.take_photo1"
+                                      .tr()
+                                      .toString(),
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: Color(0xFF0070c9),
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                Text(
+                                  "Jordan_Nationality.take_photo2"
+                                      .tr()
+                                      .toString(),
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: Color(0xFF0070c9),
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                )
+                              ],
+                            )
+                                : Text(
+                              "Jordan_Nationality.take_photo1"
+                                  .tr()
+                                  .toString(),
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Color(0xFF0070c9),
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
                       ),
+                    ),
+                  ),
+                ),
               )
               //SizedBox(width: 10),
             ],
           ),
-          imagePassportRequired == true
-              ? ReusableRequiredText(
-                  text: "Postpaid.this_feild_is_required".tr().toString())
-              : Container(),
+         Container(),
         ]),
       ),
     );
@@ -3275,7 +3502,7 @@ class _NonJordainianCustomerInformationState
               //SizedBox(width: 10),
             ],
           ),
-         /* imagePassportRequired == true
+          /* imagePassportRequired == true
               ? ReusableRequiredText(
               text: "Postpaid.this_feild_is_required".tr().toString())
               : Container(),*/
@@ -3300,105 +3527,105 @@ class _NonJordainianCustomerInformationState
               children: <TextSpan>[
                 role == 'Subdealer' || role =='DealerAgent'
                     ? TextSpan(
-                        text: ' * ',
-                        style: TextStyle(
-                          color: Color(0xFFB10000),
-                          fontSize: 14,
-                          fontWeight: FontWeight.normal,
-                        ),
-                      )
+                  text: ' * ',
+                  style: TextStyle(
+                    color: Color(0xFFB10000),
+                    fontSize: 14,
+                    fontWeight: FontWeight.normal,
+                  ),
+                )
                     : TextSpan(
-                        text: '',
-                        style: TextStyle(
-                          color: Color(0xFFB10000),
-                          fontSize: 14,
-                          fontWeight: FontWeight.normal,
-                        ),
-                      ),
+                  text: '',
+                  style: TextStyle(
+                    color: Color(0xFFB10000),
+                    fontSize: 14,
+                    fontWeight: FontWeight.normal,
+                  ),
+                ),
               ],
             ),
           ),
           SizedBox(height: 10),
           BlocBuilder<GetAddressLookupAreaBloc, GetAddressLookupAreaState>(
               builder: (context, state) {
-            if (state is GetAddressLookupAreaSuccessState ||
-                state is GetAddressLookupAreaLoadingState ||
-                state is GetAddressLookupAreaErrorState) {
-              AREAS = [];
-              if (state is GetAddressLookupAreaSuccessState) {
+                if (state is GetAddressLookupAreaSuccessState ||
+                    state is GetAddressLookupAreaLoadingState ||
+                    state is GetAddressLookupAreaErrorState) {
+                  AREAS = [];
+                  if (state is GetAddressLookupAreaSuccessState) {
 
 
-                AREAS = [];
-                for (var obj in state.data) {
-                  AREAS.add(Item(obj, obj.toString(), obj.toString()));
-                }
-                print(AREAS);
-              }
-              return Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(
-                      //color: Color(0xFFB10000), red color
-                      color: emptyArea == true
-                          ? Color(0xFFB10000)
-                          : Color(0xFFD1D7E0),
-                    ),
-                  ),
-                  child: DropdownButtonHideUnderline(
-                    child: ButtonTheme(
-                      alignedDropdown: true,
-                      child: DropdownButton<String>(
-                        hint: Text(
-                          "Personal_Info_Edit.select_an_option".tr().toString(),
-                          style: TextStyle(
-                            color: Color(0xFFA4B0C1),
-                            fontSize: 14,
+                    AREAS = [];
+                    for (var obj in state.data) {
+                      AREAS.add(Item(obj, obj.toString(), obj.toString()));
+                    }
+                    print(AREAS);
+                  }
+                  return Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(
+                          //color: Color(0xFFB10000), red color
+                          color: emptyArea == true
+                              ? Color(0xFFB10000)
+                              : Color(0xFFD1D7E0),
+                        ),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: ButtonTheme(
+                          alignedDropdown: true,
+                          child: DropdownButton<String>(
+                            hint: Text(
+                              "Personal_Info_Edit.select_an_option".tr().toString(),
+                              style: TextStyle(
+                                color: Color(0xFFA4B0C1),
+                                fontSize: 14,
+                              ),
+                            ),
+                            dropdownColor: Colors.white,
+                            icon: Icon(Icons.keyboard_arrow_down_rounded),
+                            iconSize: 30,
+                            iconEnabledColor: Colors.grey,
+                            underline: SizedBox(),
+                            isExpanded: true,
+                            style: TextStyle(
+                              color: Color(0xFF11120e),
+                              fontSize: 14,
+                            ),
+                            value: area,
+                            onChanged: (String newValue) {
+                              setState(() {
+                                area = newValue;
+                              });
+
+                              if (street != null && street != '') {
+                                setState(() {
+                                  STREET = <Item>[];
+                                  BUILDINGS = <Item>[];
+                                  street = null;
+                                  building = null;
+                                });
+                              }
+                              getAddressLookupStreetBloc
+                                  .add(GetAddressLookupStreetFetchEvent(area));
+                            },
+                            items: AREAS.map((valueItem) {
+                              return DropdownMenuItem<String>(
+                                value: valueItem.value,
+                                child: EasyLocalization.of(context).locale ==
+                                    Locale("en", "US")
+                                    ? Text(valueItem.textEn)
+                                    : Text(valueItem.textAr),
+                              );
+                            }).toList(),
                           ),
                         ),
-                        dropdownColor: Colors.white,
-                        icon: Icon(Icons.keyboard_arrow_down_rounded),
-                        iconSize: 30,
-                        iconEnabledColor: Colors.grey,
-                        underline: SizedBox(),
-                        isExpanded: true,
-                        style: TextStyle(
-                          color: Color(0xFF11120e),
-                          fontSize: 14,
-                        ),
-                        value: area,
-                        onChanged: (String newValue) {
-                          setState(() {
-                            area = newValue;
-                          });
-
-                          if (street != null && street != '') {
-                            setState(() {
-                              STREET = <Item>[];
-                              BUILDINGS = <Item>[];
-                              street = null;
-                              building = null;
-                            });
-                          }
-                          getAddressLookupStreetBloc
-                              .add(GetAddressLookupStreetFetchEvent(area));
-                        },
-                        items: AREAS.map((valueItem) {
-                          return DropdownMenuItem<String>(
-                            value: valueItem.value,
-                            child: EasyLocalization.of(context).locale ==
-                                    Locale("en", "US")
-                                ? Text(valueItem.textEn)
-                                : Text(valueItem.textAr),
-                          );
-                        }).toList(),
-                      ),
-                    ),
-                  ));
-            } else {
-              return Container();
-            }
-          }),
+                      ));
+                } else {
+                  return Container();
+                }
+              }),
           SizedBox(height: 10),
         ]);
   }
@@ -3418,107 +3645,107 @@ class _NonJordainianCustomerInformationState
               children: <TextSpan>[
                 role == 'Subdealer' || role =='DealerAgent'
                     ? TextSpan(
-                        text: ' * ',
-                        style: TextStyle(
-                          color: Color(0xFFB10000),
-                          fontSize: 14,
-                          fontWeight: FontWeight.normal,
-                        ),
-                      )
+                  text: ' * ',
+                  style: TextStyle(
+                    color: Color(0xFFB10000),
+                    fontSize: 14,
+                    fontWeight: FontWeight.normal,
+                  ),
+                )
                     : TextSpan(
-                        text: '',
-                        style: TextStyle(
-                          color: Color(0xFFB10000),
-                          fontSize: 14,
-                          fontWeight: FontWeight.normal,
-                        ),
-                      ),
+                  text: '',
+                  style: TextStyle(
+                    color: Color(0xFFB10000),
+                    fontSize: 14,
+                    fontWeight: FontWeight.normal,
+                  ),
+                ),
               ],
             ),
           ),
           SizedBox(height: 10),
           BlocBuilder<GetAddressLookupStreetBloc, GetAddressLookupStreetState>(
               builder: (context, state) {
-            if (state is GetAddressLookupStreetInitState ||
-                state is GetAddressLookupStreetSuccessState ||
-                state is GetAddressLookupStreetLoadingState ||
-                state is GetAddressLookupStreetErrorState) {
-              STREET = [];
+                if (state is GetAddressLookupStreetInitState ||
+                    state is GetAddressLookupStreetSuccessState ||
+                    state is GetAddressLookupStreetLoadingState ||
+                    state is GetAddressLookupStreetErrorState) {
+                  STREET = [];
 
-              if (state is GetAddressLookupStreetSuccessState) {
-                print(' streee s  ${state.data.length}');
-                STREET = [];
-                for (var obj in state.data) {
-                  if (obj != null) {
-                    print(obj);
-                    STREET.add(Item(obj, obj.toString(), obj.toString()));
+                  if (state is GetAddressLookupStreetSuccessState) {
+                    print(' streee s  ${state.data.length}');
+                    STREET = [];
+                    for (var obj in state.data) {
+                      if (obj != null) {
+                        print(obj);
+                        STREET.add(Item(obj, obj.toString(), obj.toString()));
+                      }
+                    }
                   }
-                }
-              }
-              return Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(
-                      //color: Color(0xFFB10000), red color
-                      color: emptyStreet == true
-                          ? Color(0xFFB10000)
-                          : Color(0xFFD1D7E0),
-                    ),
-                  ),
-                  child: DropdownButtonHideUnderline(
-                    child: ButtonTheme(
-                      alignedDropdown: true,
-                      child: DropdownButton<String>(
-                        hint: Text(
-                          "Personal_Info_Edit.select_an_option".tr().toString(),
-                          style: TextStyle(
-                            color: Color(0xFFA4B0C1),
-                            fontSize: 14,
+                  return Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(
+                          //color: Color(0xFFB10000), red color
+                          color: emptyStreet == true
+                              ? Color(0xFFB10000)
+                              : Color(0xFFD1D7E0),
+                        ),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: ButtonTheme(
+                          alignedDropdown: true,
+                          child: DropdownButton<String>(
+                            hint: Text(
+                              "Personal_Info_Edit.select_an_option".tr().toString(),
+                              style: TextStyle(
+                                color: Color(0xFFA4B0C1),
+                                fontSize: 14,
+                              ),
+                            ),
+                            dropdownColor: Colors.white,
+                            icon: Icon(Icons.keyboard_arrow_down_rounded),
+                            iconSize: 30,
+                            iconEnabledColor: Colors.grey,
+                            underline: SizedBox(),
+                            isExpanded: true,
+                            style: TextStyle(
+                              color: Color(0xFF11120e),
+                              fontSize: 14,
+                            ),
+                            value: street,
+                            onChanged: (String newValue) {
+                              setState(() {
+                                street = newValue;
+                              });
+
+                              if (building != null && building != '') {
+                                setState(() {
+                                  BUILDINGS = <Item>[];
+                                  building = null;
+                                });
+                              }
+
+                              getAddressLookupBuildingBloc
+                                  .add(GetAddressLookupBuildingFetchEvent(street));
+                            },
+                            items: STREET.map((valueItem) {
+                              return DropdownMenuItem<String>(
+                                value: valueItem.value,
+                                child: EasyLocalization.of(context).locale ==
+                                    Locale("en", "US")
+                                    ? Text(valueItem.textEn)
+                                    : Text(valueItem.textAr),
+                              );
+                            }).toList(),
                           ),
                         ),
-                        dropdownColor: Colors.white,
-                        icon: Icon(Icons.keyboard_arrow_down_rounded),
-                        iconSize: 30,
-                        iconEnabledColor: Colors.grey,
-                        underline: SizedBox(),
-                        isExpanded: true,
-                        style: TextStyle(
-                          color: Color(0xFF11120e),
-                          fontSize: 14,
-                        ),
-                        value: street,
-                        onChanged: (String newValue) {
-                          setState(() {
-                            street = newValue;
-                          });
-
-                          if (building != null && building != '') {
-                            setState(() {
-                              BUILDINGS = <Item>[];
-                              building = null;
-                            });
-                          }
-
-                          getAddressLookupBuildingBloc
-                              .add(GetAddressLookupBuildingFetchEvent(street));
-                        },
-                        items: STREET.map((valueItem) {
-                          return DropdownMenuItem<String>(
-                            value: valueItem.value,
-                            child: EasyLocalization.of(context).locale ==
-                                    Locale("en", "US")
-                                ? Text(valueItem.textEn)
-                                : Text(valueItem.textAr),
-                          );
-                        }).toList(),
-                      ),
-                    ),
-                  ));
-            } else {
-              return Container();
-            }
-          }),
+                      ));
+                } else {
+                  return Container();
+                }
+              }),
           SizedBox(height: 10),
         ]);
   }
@@ -3537,105 +3764,105 @@ class _NonJordainianCustomerInformationState
           children: <TextSpan>[
             role == 'Subdealer' || role =='DealerAgent'
                 ? TextSpan(
-                    text: ' * ',
-                    style: TextStyle(
-                      color: Color(0xFFB10000),
-                      fontSize: 14,
-                      fontWeight: FontWeight.normal,
-                    ),
-                  )
+              text: ' * ',
+              style: TextStyle(
+                color: Color(0xFFB10000),
+                fontSize: 14,
+                fontWeight: FontWeight.normal,
+              ),
+            )
                 : TextSpan(
-                    text: '',
-                    style: TextStyle(
-                      color: Color(0xFFB10000),
-                      fontSize: 14,
-                      fontWeight: FontWeight.normal,
-                    ),
-                  ),
+              text: '',
+              style: TextStyle(
+                color: Color(0xFFB10000),
+                fontSize: 14,
+                fontWeight: FontWeight.normal,
+              ),
+            ),
           ],
         ),
       ),
       SizedBox(height: 10),
       BlocBuilder<GetAddressLookupBuildingBloc, GetAddressLookupBuildingState>(
           builder: (context, state) {
-        if (state is GetAddressLookupBuildingSuccessState ||
-            state is GetAddressLookupBuildingLoadingState ||
-            state is GetAddressLookupBuildingErrorState) {
-          BUILDINGS = [];
-          if (state is GetAddressLookupBuildingSuccessState) {
-            BUILDINGS = [];
-            for (var obj in state.data) {
-              BUILDINGS.add(Item(obj, obj.toString(), obj.toString()));
-            }
-          }
-          return BlocListener<GetBuildingCodeBloc, GetBuildingCodeState>(
-            listener: (context, state) {
-              if (state is GetBuildingCodeSuccessState) {
-                buildingCode.clear();
-                setState(() {
-                  buildingCode.text = state.data;
-                });
-                buildingCode.text = state.data;
+            if (state is GetAddressLookupBuildingSuccessState ||
+                state is GetAddressLookupBuildingLoadingState ||
+                state is GetAddressLookupBuildingErrorState) {
+              BUILDINGS = [];
+              if (state is GetAddressLookupBuildingSuccessState) {
+                BUILDINGS = [];
+                for (var obj in state.data) {
+                  BUILDINGS.add(Item(obj, obj.toString(), obj.toString()));
+                }
               }
-            },
-            child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(4),
-                  border: Border.all(
-                    //color: Color(0xFFB10000), red color
-                    color: emptyBuilding == true
-                        ? Color(0xFFB10000)
-                        : Color(0xFFD1D7E0),
-                  ),
-                ),
-                child: DropdownButtonHideUnderline(
-                  child: ButtonTheme(
-                    alignedDropdown: true,
-                    child: DropdownButton<String>(
-                      hint: Text(
-                        "Personal_Info_Edit.select_an_option".tr().toString(),
-                        style: TextStyle(
-                          color: Color(0xFFA4B0C1),
-                          fontSize: 14,
+              return BlocListener<GetBuildingCodeBloc, GetBuildingCodeState>(
+                listener: (context, state) {
+                  if (state is GetBuildingCodeSuccessState) {
+                    buildingCode.clear();
+                    setState(() {
+                      buildingCode.text = state.data;
+                    });
+                    buildingCode.text = state.data;
+                  }
+                },
+                child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(
+                        //color: Color(0xFFB10000), red color
+                        color: emptyBuilding == true
+                            ? Color(0xFFB10000)
+                            : Color(0xFFD1D7E0),
+                      ),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: ButtonTheme(
+                        alignedDropdown: true,
+                        child: DropdownButton<String>(
+                          hint: Text(
+                            "Personal_Info_Edit.select_an_option".tr().toString(),
+                            style: TextStyle(
+                              color: Color(0xFFA4B0C1),
+                              fontSize: 14,
+                            ),
+                          ),
+                          dropdownColor: Colors.white,
+                          icon: Icon(Icons.keyboard_arrow_down_rounded),
+                          iconSize: 30,
+                          iconEnabledColor: Colors.grey,
+                          underline: SizedBox(),
+                          isExpanded: true,
+                          style: TextStyle(
+                            color: Color(0xFF11120e),
+                            fontSize: 14,
+                          ),
+                          value: building,
+                          onChanged: (String newValue) {
+                            setState(() {
+                              building = newValue;
+                            });
+
+                            getBuildingCodeBloc.add(
+                                GetBuildingCodeFetchEvent(area, street, building));
+                          },
+                          items: BUILDINGS.map((valueItem) {
+                            return DropdownMenuItem<String>(
+                              value: valueItem.value,
+                              child: EasyLocalization.of(context).locale ==
+                                  Locale("en", "US")
+                                  ? Text(valueItem.textEn)
+                                  : Text(valueItem.textAr),
+                            );
+                          }).toList(),
                         ),
                       ),
-                      dropdownColor: Colors.white,
-                      icon: Icon(Icons.keyboard_arrow_down_rounded),
-                      iconSize: 30,
-                      iconEnabledColor: Colors.grey,
-                      underline: SizedBox(),
-                      isExpanded: true,
-                      style: TextStyle(
-                        color: Color(0xFF11120e),
-                        fontSize: 14,
-                      ),
-                      value: building,
-                      onChanged: (String newValue) {
-                        setState(() {
-                          building = newValue;
-                        });
-
-                        getBuildingCodeBloc.add(
-                            GetBuildingCodeFetchEvent(area, street, building));
-                      },
-                      items: BUILDINGS.map((valueItem) {
-                        return DropdownMenuItem<String>(
-                          value: valueItem.value,
-                          child: EasyLocalization.of(context).locale ==
-                                  Locale("en", "US")
-                              ? Text(valueItem.textEn)
-                              : Text(valueItem.textAr),
-                        );
-                      }).toList(),
-                    ),
-                  ),
-                )),
-          );
-        } else {
-          return Container();
-        }
-      }),
+                    )),
+              );
+            } else {
+              return Container();
+            }
+          }),
       SizedBox(height: 10),
     ]);
   }
@@ -3658,189 +3885,189 @@ class _NonJordainianCustomerInformationState
                 padding: EdgeInsets.only(left: 10, right: 5),
                 child: _loadIdLocation == true
                     ? Column(
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                width: 180,
-                                height: 235,
-                                decoration: BoxDecoration(
-                                    color: Colors.black,
-                                    image: DecorationImage(
-                                      colorFilter: new ColorFilter.mode(
-                                          Colors.black.withOpacity(0.5),
-                                          BlendMode.dstATop),
-                                      image: FileImage(imageFileLocation),
-                                      fit: BoxFit.cover,
-                                    )),
-                                child: new Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 180,
+                          height: 235,
+                          decoration: BoxDecoration(
+                              color: Colors.black,
+                              image: DecorationImage(
+                                colorFilter: new ColorFilter.mode(
+                                    Colors.black.withOpacity(0.5),
+                                    BlendMode.dstATop),
+                                image: FileImage(imageFileLocation),
+                                fit: BoxFit.cover,
+                              )),
+                          child: new Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: <Widget>[
+                                Center(
+                                  child: new Column(
+                                    mainAxisAlignment:
+                                    MainAxisAlignment.center,
                                     children: <Widget>[
-                                      Center(
-                                        child: new Column(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          children: <Widget>[
-                                            new Container(
-                                              child: Image(
-                                                image: AssetImage(
-                                                    'assets/images/iconCheck.png'),
-                                                fit: BoxFit.cover,
-                                                height: 24.0,
-                                              ),
-                                            ),
-                                            SizedBox(height: 10),
-                                            new Container(
-                                              child: GestureDetector(
-                                                onTap: () async {
-                                                  FocusScope.of(context)
-                                                      .unfocus();
-                                                  showDialog(
-                                                      context: context,
-                                                      builder: (_) => Center(
-                                                              // Aligns the container to center
-                                                              child: Container(
-                                                            child: PhotoView(
-                                                              enableRotation:
-                                                                  true,
-                                                              backgroundDecoration:
-                                                                  BoxDecoration(
-                                                                      color: Colors
-                                                                          .transparent),
-                                                              imageProvider:
-                                                                  FileImage(
-                                                                      imageFileLocation),
-                                                            ),
-                                                            // A simplified version of dialog.
-                                                            width: 310.0,
-                                                            height: 500.0,
-                                                          )));
-                                                },
-                                                child: Align(
-                                                  alignment: Alignment.center,
-                                                  child: Text(
-                                                    "Jordan_Nationality.preview_photo"
-                                                        .tr()
-                                                        .toString(),
-                                                    textAlign: TextAlign.center,
-                                                    style: TextStyle(
-                                                      color: Color(0xFFffffff),
-                                                      fontSize: 16,
-                                                      fontWeight:
-                                                          FontWeight.w600,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                          ],
+                                      new Container(
+                                        child: Image(
+                                          image: AssetImage(
+                                              'assets/images/iconCheck.png'),
+                                          fit: BoxFit.cover,
+                                          height: 24.0,
                                         ),
                                       ),
-                                    ]),
-                              ),
-                            ],
-                          ),
-                          new Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: <Widget>[
-                              new Container(
-                                width: 170,
-                                padding: EdgeInsets.only(top: 15),
-                                child: GestureDetector(
-                                  onTap: () {
-                                    FocusScope.of(context).unfocus();
-                                    _showPickerLocation(context);
-                                  },
-                                  child: Align(
-                                    alignment: Alignment.center,
-                                    child: Text(
-                                      "Jordan_Nationality.re_take_photo"
-                                          .tr()
-                                          .toString(),
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        color: Color(0xFF0070c9),
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      )
-                    : buildDashedBorder(
-                        child: InkWell(
-                          onTap: () {
-                            FocusScope.of(context).unfocus();
-                            _showPickerLocation(context);
-                          },
-                          child: Container(
-                            width: 180,
-                            height: 235,
-                            child: GestureDetector(
-                              child: Align(
-                                alignment: Alignment.center,
-                                child: Align(
-                                  alignment: Alignment.center,
-                                  child: EasyLocalization.of(context).locale ==
-                                          Locale("en", "US")
-                                      ? Column(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          children: [
-                                            Text(
-                                              "Jordan_Nationality.take_photo1"
+                                      SizedBox(height: 10),
+                                      new Container(
+                                        child: GestureDetector(
+                                          onTap: () async {
+                                            FocusScope.of(context)
+                                                .unfocus();
+                                            showDialog(
+                                                context: context,
+                                                builder: (_) => Center(
+                                                  // Aligns the container to center
+                                                    child: Container(
+                                                      child: PhotoView(
+                                                        enableRotation:
+                                                        true,
+                                                        backgroundDecoration:
+                                                        BoxDecoration(
+                                                            color: Colors
+                                                                .transparent),
+                                                        imageProvider:
+                                                        FileImage(
+                                                            imageFileLocation),
+                                                      ),
+                                                      // A simplified version of dialog.
+                                                      width: 310.0,
+                                                      height: 500.0,
+                                                    )));
+                                          },
+                                          child: Align(
+                                            alignment: Alignment.center,
+                                            child: Text(
+                                              "Jordan_Nationality.preview_photo"
                                                   .tr()
                                                   .toString(),
                                               textAlign: TextAlign.center,
                                               style: TextStyle(
-                                                color: Color(0xFF0070c9),
+                                                color: Color(0xFFffffff),
                                                 fontSize: 16,
-                                                fontWeight: FontWeight.w600,
+                                                fontWeight:
+                                                FontWeight.w600,
                                               ),
                                             ),
-                                            Text(
-                                              "Jordan_Nationality.take_photo2"
-                                                  .tr()
-                                                  .toString(),
-                                              textAlign: TextAlign.center,
-                                              style: TextStyle(
-                                                color: Color(0xFF0070c9),
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            )
-                                          ],
-                                        )
-                                      : Text(
-                                          "Jordan_Nationality.take_photo1"
-                                              .tr()
-                                              .toString(),
-                                          textAlign: TextAlign.center,
-                                          style: TextStyle(
-                                            color: Color(0xFF0070c9),
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.w600,
                                           ),
                                         ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ]),
+                        ),
+                      ],
+                    ),
+                    new Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: <Widget>[
+                        new Container(
+                          width: 170,
+                          padding: EdgeInsets.only(top: 15),
+                          child: GestureDetector(
+                            onTap: () {
+                              FocusScope.of(context).unfocus();
+                              _showPickerLocation(context);
+                            },
+                            child: Align(
+                              alignment: Alignment.center,
+                              child: Text(
+                                "Jordan_Nationality.re_take_photo"
+                                    .tr()
+                                    .toString(),
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: Color(0xFF0070c9),
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
                             ),
                           ),
                         ),
+                      ],
+                    ),
+                  ],
+                )
+                    : buildDashedBorder(
+                  child: InkWell(
+                    onTap: () {
+                      FocusScope.of(context).unfocus();
+                      _showPickerLocation(context);
+                    },
+                    child: Container(
+                      width: 180,
+                      height: 235,
+                      child: GestureDetector(
+                        child: Align(
+                          alignment: Alignment.center,
+                          child: Align(
+                            alignment: Alignment.center,
+                            child: EasyLocalization.of(context).locale ==
+                                Locale("en", "US")
+                                ? Column(
+                              mainAxisAlignment:
+                              MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  "Jordan_Nationality.take_photo1"
+                                      .tr()
+                                      .toString(),
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: Color(0xFF0070c9),
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                Text(
+                                  "Jordan_Nationality.take_photo2"
+                                      .tr()
+                                      .toString(),
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: Color(0xFF0070c9),
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                )
+                              ],
+                            )
+                                : Text(
+                              "Jordan_Nationality.take_photo1"
+                                  .tr()
+                                  .toString(),
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Color(0xFF0070c9),
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
                       ),
+                    ),
+                  ),
+                ),
               )
               //SizedBox(width: 10),
             ],
           ),
           imageLocationRequired == true
               ? ReusableRequiredText(
-                  text: "Jordan_Nationality.this_feild_is_required"
-                      .tr()
-                      .toString())
+              text: "Jordan_Nationality.this_feild_is_required"
+                  .tr()
+                  .toString())
               : Container(),
         ]),
       ),
@@ -3883,19 +4110,19 @@ class _NonJordainianCustomerInformationState
             decoration: InputDecoration(
               enabledBorder: emptyBuildinCode == true
                   ? const OutlineInputBorder(
-                      // width: 0.0 produces a thin "hairline" border
-                      borderSide: const BorderSide(
-                          color: Color(0xFFB10000), width: 1.0),
-                    )
+                // width: 0.0 produces a thin "hairline" border
+                borderSide: const BorderSide(
+                    color: Color(0xFFB10000), width: 1.0),
+              )
                   : const OutlineInputBorder(
-                      // width: 0.0 produces a thin "hairline" border
-                      borderSide: const BorderSide(
-                          color: Color(0xFFD1D7E0), width: 1.0),
-                    ),
+                // width: 0.0 produces a thin "hairline" border
+                borderSide: const BorderSide(
+                    color: Color(0xFFD1D7E0), width: 1.0),
+              ),
               border: const OutlineInputBorder(),
               focusedBorder: OutlineInputBorder(
                 borderSide:
-                    const BorderSide(color: Color(0xFF4F2565), width: 1.0),
+                const BorderSide(color: Color(0xFF4F2565), width: 1.0),
               ),
               contentPadding: EdgeInsets.all(16),
               hintText: "Postpaid.building_code".tr().toString(),
@@ -4048,12 +4275,12 @@ class _NonJordainianCustomerInformationState
       children: <Widget>[
         RichText(
           text: TextSpan(
-            text: "Postpaid.Reseller".tr().toString(),
-            style: TextStyle(
-              color: Color(0xFF11120E),
-              fontSize: 14,
-              fontWeight: FontWeight.normal,
-            ),
+              text: "Postpaid.Reseller".tr().toString(),
+              style: TextStyle(
+                color: Color(0xFF11120E),
+                fontSize: 14,
+                fontWeight: FontWeight.normal,
+              ),
               children: <TextSpan>[
                 role=="ZainTelesales"?  TextSpan(
                   text: ' * ',
@@ -4267,12 +4494,12 @@ class _NonJordainianCustomerInformationState
       children: <Widget>[
         RichText(
           text: TextSpan(
-            text: "Postpaid.ON_BEHALF".tr().toString(),
-            style: TextStyle(
-              color: Color(0xFF11120E),
-              fontSize: 14,
-              fontWeight: FontWeight.normal,
-            ),
+              text: "Postpaid.ON_BEHALF".tr().toString(),
+              style: TextStyle(
+                color: Color(0xFF11120E),
+                fontSize: 14,
+                fontWeight: FontWeight.normal,
+              ),
               children: <TextSpan>[
                 role=="ZainTelesales"?  TextSpan(
                   text: ' * ',
@@ -4364,7 +4591,7 @@ class _NonJordainianCustomerInformationState
     }
   }
 
- /*....................................................End New ................................................................*/
+  /*....................................................End New ................................................................*/
 
 
 /*.................................................new..............................................................*/
@@ -4424,7 +4651,7 @@ class _NonJordainianCustomerInformationState
             border: Border.all(
               //color: Color(0xFFB10000), red color
               color:
-                  emptyOption == true ? Color(0xFFB10000) : Color(0xFFD1D7E0),
+              emptyOption == true ? Color(0xFFB10000) : Color(0xFFD1D7E0),
             ),
           ),
           child: DropdownButtonHideUnderline(
@@ -4477,7 +4704,7 @@ class _NonJordainianCustomerInformationState
                   return DropdownMenuItem<String>(
                     value: valueItem,
                     child: EasyLocalization.of(context).locale ==
-                            Locale("en", "US")
+                        Locale("en", "US")
                         ? Text(valueItem)
                         : Text(valueItem),
                   );
@@ -4521,8 +4748,8 @@ class _NonJordainianCustomerInformationState
             controller: salesLeadValue,
 
             buildCounter: (BuildContext context,
-                    {int currentLength, int maxLength, bool isFocused}) =>
-                null,
+                {int currentLength, int maxLength, bool isFocused}) =>
+            null,
             keyboardType: TextInputType.text,
             /* inputFormatters: [
               FilteringTextInputFormatter.deny(
@@ -4532,19 +4759,19 @@ class _NonJordainianCustomerInformationState
             decoration: InputDecoration(
               enabledBorder: emptysalesLeadValue == true
                   ? const OutlineInputBorder(
-                      // width: 0.0 produces a thin "hairline" border
-                      borderSide: const BorderSide(
-                          color: Color(0xFFB10000), width: 1.0),
-                    )
+                // width: 0.0 produces a thin "hairline" border
+                borderSide: const BorderSide(
+                    color: Color(0xFFB10000), width: 1.0),
+              )
                   : const OutlineInputBorder(
-                      // width: 0.0 produces a thin "hairline" border
-                      borderSide: const BorderSide(
-                          color: Color(0xFFD1D7E0), width: 1.0),
-                    ),
+                // width: 0.0 produces a thin "hairline" border
+                borderSide: const BorderSide(
+                    color: Color(0xFFD1D7E0), width: 1.0),
+              ),
               border: const OutlineInputBorder(),
               focusedBorder: OutlineInputBorder(
                 borderSide:
-                    const BorderSide(color: Color(0xFF4F2565), width: 1.0),
+                const BorderSide(color: Color(0xFF4F2565), width: 1.0),
               ),
               contentPadding: EdgeInsets.all(16),
               hintText: salesLeadType==1? "Postpaid.Enter_LCM_Ticket".tr().toString():"Postpaid.Enter_EshopOrderNO_Ticket".tr().toString(),
@@ -4951,9 +5178,9 @@ class _NonJordainianCustomerInformationState
             activeColor: Color(0xFF4f2565),
             inactiveTrackColor: Color(0xFFEBECF1),
           ),
-              Text( EasyLocalization.of(context).locale == Locale("en", "US")
-                  ? 'Promotion'
-                  : "ترويج",
+          Text( EasyLocalization.of(context).locale == Locale("en", "US")
+              ? 'Promotion'
+              : "ترويج",
             style: TextStyle(
               color: Color(0xff11120e),
               fontWeight: FontWeight.bold,
@@ -4996,7 +5223,7 @@ class _NonJordainianCustomerInformationState
           height: 70,
           child: TextField(
             // maxLength: 10,
-           // enabled: checkPromoCode==true?false:true,
+            // enabled: checkPromoCode==true?false:true,
             controller: promoCode,
             keyboardType: TextInputType.text,
             style: TextStyle(color: Color(0xff11120e)),
@@ -5168,7 +5395,7 @@ class _NonJordainianCustomerInformationState
                   contractImageBase64: null,
                   salesLeadType: salesLeadType,
                   salesLeadValue: salesLeadValue.text,
-                 // onBehalfUser:selectedBEHALF_key==null?"":selectedBEHALF_key,
+                  // onBehalfUser:selectedBEHALF_key==null?"":selectedBEHALF_key,
                   onBehalfUser:role =='DealerAgent'?tawasoleNumber.text:(selectedBEHALF_key==null?"":selectedBEHALF_key),
                   resellerID :selectedReseller_key==null?"":selectedReseller_key,
                   isClaimed:claim,
@@ -5206,7 +5433,7 @@ class _NonJordainianCustomerInformationState
               Container(
                   color: Color(0xFFEBECF1),
                   padding:
-                      EdgeInsets.only(left: 16, right: 10, top: 8, bottom: 15),
+                  EdgeInsets.only(left: 16, right: 10, top: 8, bottom: 15),
                   child: Text(
                     "Profile_Form.personal_information".tr().toString(),
                     style: TextStyle(
@@ -5232,33 +5459,33 @@ class _NonJordainianCustomerInformationState
                           buildMSISDNNumber(),
                           emptyMSISDN == true
                               ? ReusableRequiredText(
-                                  text: "Postpaid.this_feild_is_required"
-                                      .tr()
-                                      .toString())
+                              text: "Postpaid.this_feild_is_required"
+                                  .tr()
+                                  .toString())
                               : Container(),
                           SizedBox(height: 10),
                           buildUserName(),
                           emptyUserName == true
                               ? ReusableRequiredText(
-                                  text: "Postpaid.this_feild_is_required"
-                                      .tr()
-                                      .toString())
+                              text: "Postpaid.this_feild_is_required"
+                                  .tr()
+                                  .toString())
                               : Container(),
                           SizedBox(height: 10),
                           buildPassword(),
                           emptyPassword == true
                               ? ReusableRequiredText(
-                                  text: "Postpaid.this_feild_is_required"
-                                      .tr()
-                                      .toString())
+                              text: "Postpaid.this_feild_is_required"
+                                  .tr()
+                                  .toString())
                               : Container(),
                           SizedBox(height: 10),
                           buildFirstName(),
                           emptyFirstName == true
                               ? ReusableRequiredText(
-                                  text: "Postpaid.this_feild_is_required"
-                                      .tr()
-                                      .toString())
+                              text: "Postpaid.this_feild_is_required"
+                                  .tr()
+                                  .toString())
                               : Container(),
                           SizedBox(height: 10),
                           buildSecondName(),
@@ -5267,65 +5494,65 @@ class _NonJordainianCustomerInformationState
                           buildThirdName(),
                           emptyThirdName == true
                               ? ReusableRequiredText(
-                                  text: "Postpaid.this_feild_is_required"
-                                      .tr()
-                                      .toString())
+                              text: "Postpaid.this_feild_is_required"
+                                  .tr()
+                                  .toString())
                               : Container(),
                           SizedBox(height: 10),
                           buildLastName(),
                           emptyLastName == true
                               ? ReusableRequiredText(
-                                  text: "Postpaid.this_feild_is_required"
-                                      .tr()
-                                      .toString())
+                              text: "Postpaid.this_feild_is_required"
+                                  .tr()
+                                  .toString())
                               : Container(),
                           SizedBox(height: 10),
                           buildReferenceNumber(),
                           emptyReferenceNumber == true
                               ? ReusableRequiredText(
-                                  text: "Postpaid.this_feild_is_required"
-                                      .tr()
-                                      .toString())
+                              text: "Postpaid.this_feild_is_required"
+                                  .tr()
+                                  .toString())
                               : Container(),
                           errorReferenceNumber == true
                               ? ReusableRequiredText(
-                                  text: EasyLocalization.of(context).locale ==
-                                          Locale("en", "US")
-                                      ? "Your MSISDN shoud be 10 digit and valid"
-                                      : "رقم الهاتف يجب أن يتكون من 10 خانات وصالح ")
+                              text: EasyLocalization.of(context).locale ==
+                                  Locale("en", "US")
+                                  ? "Your MSISDN shoud be 10 digit and valid"
+                                  : "رقم الهاتف يجب أن يتكون من 10 خانات وصالح ")
                               : Container(),
                           successFlag == true && clearSucssesFlag==1
                               ? Container(
-                                  padding: EdgeInsets.only(top: 5),
-                                  alignment:
-                                      EasyLocalization.of(context).locale ==
-                                              Locale("en", "US")
-                                          ? Alignment.bottomLeft
-                                          : Alignment.bottomRight,
-                                  child: RichText(
-                                    text: TextSpan(
-                                      children: [
-                                        WidgetSpan(
-                                          child: new Icon(
-                                            Icons.assignment_turned_in,
-                                            size: 14,
-                                            color: Color(0xFF4BB543),
-                                          ),
-                                        ),
-                                        TextSpan(
-                                          text:
-                                              "Jordan_Nationality.Verify_Number_Successfully"
-                                                  .tr()
-                                                  .toString(),
-                                          style: TextStyle(
-                                            color: Color(0xFF4BB543),
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.normal,
-                                          ),
-                                        ),
-                                      ],
+                              padding: EdgeInsets.only(top: 5),
+                              alignment:
+                              EasyLocalization.of(context).locale ==
+                                  Locale("en", "US")
+                                  ? Alignment.bottomLeft
+                                  : Alignment.bottomRight,
+                              child: RichText(
+                                text: TextSpan(
+                                  children: [
+                                    WidgetSpan(
+                                      child: new Icon(
+                                        Icons.assignment_turned_in,
+                                        size: 14,
+                                        color: Color(0xFF4BB543),
+                                      ),
                                     ),
-                                  ))
+                                    TextSpan(
+                                      text:
+                                      "Jordan_Nationality.Verify_Number_Successfully"
+                                          .tr()
+                                          .toString(),
+                                      style: TextStyle(
+                                        color: Color(0xFF4BB543),
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.normal,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ))
                               : Container(),
 
                           // reference number 2
@@ -5336,57 +5563,57 @@ class _NonJordainianCustomerInformationState
                           buildReferenceNumber2(),
                           emptySecondReferenceNumber == true
                               ? ReusableRequiredText(
-                                  text:
-                                      "Jordan_Nationality.this_feild_is_required"
-                                          .tr()
-                                          .toString())
+                              text:
+                              "Jordan_Nationality.this_feild_is_required"
+                                  .tr()
+                                  .toString())
                               : Container(),
                           errorSecondReferenceNumber == true
                               ? ReusableRequiredText(
-                                  text: EasyLocalization.of(context).locale ==
-                                          Locale("en", "US")
-                                      ? "Your MSISDN should be 10 digit and valid"
-                                      : "رقم الهاتف يجب أن يتكون من 10 خانات وصالح ")
+                              text: EasyLocalization.of(context).locale ==
+                                  Locale("en", "US")
+                                  ? "Your MSISDN should be 10 digit and valid"
+                                  : "رقم الهاتف يجب أن يتكون من 10 خانات وصالح ")
                               : Container(),
                           duplicateSecondReferenceNumber == true
                               ? ReusableRequiredText(
-                                  text: EasyLocalization.of(context).locale ==
-                                          Locale("en", "US")
-                                      ? 'Please insert another reference number'
-                                      : 'الرجاء إدخال رقم مرجعي آخر')
+                              text: EasyLocalization.of(context).locale ==
+                                  Locale("en", "US")
+                                  ? 'Please insert another reference number'
+                                  : 'الرجاء إدخال رقم مرجعي آخر')
                               : Container(),
                           successFlagSecondeReferancenumber == true
                               ? Container(
-                                  padding: EdgeInsets.only(top: 5),
-                                  alignment:
-                                      EasyLocalization.of(context).locale ==
-                                              Locale("en", "US")
-                                          ? Alignment.bottomLeft
-                                          : Alignment.bottomRight,
-                                  child: RichText(
-                                    text: TextSpan(
-                                      children: [
-                                        WidgetSpan(
-                                          child: new Icon(
-                                            Icons.assignment_turned_in,
-                                            size: 14,
-                                            color: Color(0xFF4BB543),
-                                          ),
-                                        ),
-                                        TextSpan(
-                                          text:
-                                              "Jordan_Nationality.Verify_Number_Successfully"
-                                                  .tr()
-                                                  .toString(),
-                                          style: TextStyle(
-                                            color: Color(0xFF4BB543),
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.normal,
-                                          ),
-                                        ),
-                                      ],
+                              padding: EdgeInsets.only(top: 5),
+                              alignment:
+                              EasyLocalization.of(context).locale ==
+                                  Locale("en", "US")
+                                  ? Alignment.bottomLeft
+                                  : Alignment.bottomRight,
+                              child: RichText(
+                                text: TextSpan(
+                                  children: [
+                                    WidgetSpan(
+                                      child: new Icon(
+                                        Icons.assignment_turned_in,
+                                        size: 14,
+                                        color: Color(0xFF4BB543),
+                                      ),
                                     ),
-                                  ))
+                                    TextSpan(
+                                      text:
+                                      "Jordan_Nationality.Verify_Number_Successfully"
+                                          .tr()
+                                          .toString(),
+                                      style: TextStyle(
+                                        color: Color(0xFF4BB543),
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.normal,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ))
                               : Container(),
                           SizedBox(
                             height: 10,
@@ -5414,27 +5641,27 @@ class _NonJordainianCustomerInformationState
                           isMigrate == true ? buildmbbMSISDN() : Container(),
                           isMigrate == true && emptyMBBMSISDN == true
                               ? ReusableRequiredText(
-                                  text: "Postpaid.this_feild_is_required"
-                                      .tr()
-                                      .toString())
+                              text: "Postpaid.this_feild_is_required"
+                                  .tr()
+                                  .toString())
                               : Container(),
 
                           ////////////////New////////////////////////////////////////
                           switchValidateSalesLead == true
                               ? Container(
-                                  color: Colors.white,
-                                  padding: EdgeInsets.only(
-                                      left: 5, right: 5, top: 12, bottom: 5),
-                                  child: buildSalesLeadOptions(),
-                                )
+                            color: Colors.white,
+                            padding: EdgeInsets.only(
+                                left: 5, right: 5, top: 12, bottom: 5),
+                            child: buildSalesLeadOptions(),
+                          )
                               : Container(),
                           (optionValue != null || optionValue == '') &&
-                                  switchValidateSalesLead == true
+                              switchValidateSalesLead == true
                               ? Container(
-                                  color: Colors.white,
-                                  padding: EdgeInsets.only(
-                                      left: 5, right: 5, top: 5, bottom: 8),
-                                  child: buildLCM_SalesLeadTicket())
+                              color: Colors.white,
+                              padding: EdgeInsets.only(
+                                  left: 5, right: 5, top: 5, bottom: 8),
+                              child: buildLCM_SalesLeadTicket())
                               : Container(),
 
                           ////////////////New 17/4/2022////////////////////////////////////////
@@ -5483,7 +5710,7 @@ class _NonJordainianCustomerInformationState
                   child: buildValidateSalesLeadBy()):Container(),
 
               //////////////// end New////////////////////////////////////////
-            ///////////////////22/3/2023///////////////////////////////////
+              ///////////////////22/3/2023///////////////////////////////////
               Permessions.contains("05.02.02.05")==true?Container(
                   color: Colors.white,
                   padding: EdgeInsets.only(left: 5, right: 5, bottom: 8),
@@ -5496,13 +5723,15 @@ class _NonJordainianCustomerInformationState
                   padding: EdgeInsets.only(left: 5, right: 5, bottom: 8,top: 4),
                   child: buildON_Reseller()):Container(),
 
-            /*  Permessions.contains('05.02.01.06') == true?  Container(
+              /*  Permessions.contains('05.02.01.06') == true?  Container(
                   color: Colors.white,
                   padding: EdgeInsets.only(left: 5, right: 5, bottom: 8,top: 4),
                   child: buildON_CLAIM()):Container(),*/
 
 
               //////////////// end New////////////////////////////////////////
+              // 🚫 Passport Photo Capture Removed - Using eKYC Passport OCR instead
+              /*
               Container(
                 height: 60,
                 padding: EdgeInsets.only(top: 8),
@@ -5571,6 +5800,7 @@ class _NonJordainianCustomerInformationState
                 ),
               ),
               Container(child: buildImagePassportBack()),
+              */
               /**********************************************************************************************/
               Container(
                 height: 60,
@@ -5605,32 +5835,32 @@ class _NonJordainianCustomerInformationState
                           SizedBox(height: 10),
                           emptyArea == true
                               ? ReusableRequiredText(
-                                  text: "Postpaid.this_feild_is_required"
-                                      .tr()
-                                      .toString())
+                              text: "Postpaid.this_feild_is_required"
+                                  .tr()
+                                  .toString())
                               : Container(),
                           buildStreetName(),
                           emptyStreet == true
                               ? ReusableRequiredText(
-                                  text: "Postpaid.this_feild_is_required"
-                                      .tr()
-                                      .toString())
+                              text: "Postpaid.this_feild_is_required"
+                                  .tr()
+                                  .toString())
                               : Container(),
                           SizedBox(height: 10),
                           buildBuildingName(),
                           emptyBuilding == true
                               ? ReusableRequiredText(
-                                  text: "Postpaid.this_feild_is_required"
-                                      .tr()
-                                      .toString())
+                              text: "Postpaid.this_feild_is_required"
+                                  .tr()
+                                  .toString())
                               : Container(),
                           SizedBox(height: 10),
                           buildBuildingCode(),
                           emptyBuildinCode == true
                               ? ReusableRequiredText(
-                                  text: "Postpaid.this_feild_is_required"
-                                      .tr()
-                                      .toString())
+                              text: "Postpaid.this_feild_is_required"
+                                  .tr()
+                                  .toString())
                               : Container()
                         ],
                       ),
@@ -5643,123 +5873,123 @@ class _NonJordainianCustomerInformationState
               ),
               role == "Subdealer" || role =='DealerAgent'
                   ? Container(
-                      height: 60,
-                      padding: EdgeInsets.only(top: 8),
-                      child: ListTile(
-                        leading: Container(
-                          width: 280,
-                          child: Text(
-                            "Postpaid.location_photo".tr().toString(),
-                            style: TextStyle(
-                              color: Color(0xFF11120e),
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                        trailing: _loadIdLocation == true
-                            ? Container(
-                                child: IconButton(
-                                    icon: Icon(Icons.delete),
-                                    color: Color(0xff0070c9),
-                                    onPressed: () => {clearImageLocation()}),
-                              )
-                            : null,
+                height: 60,
+                padding: EdgeInsets.only(top: 8),
+                child: ListTile(
+                  leading: Container(
+                    width: 280,
+                    child: Text(
+                      "Postpaid.location_photo".tr().toString(),
+                      style: TextStyle(
+                        color: Color(0xFF11120e),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
                       ),
-                    )
+                    ),
+                  ),
+                  trailing: _loadIdLocation == true
+                      ? Container(
+                    child: IconButton(
+                        icon: Icon(Icons.delete),
+                        color: Color(0xff0070c9),
+                        onPressed: () => {clearImageLocation()}),
+                  )
+                      : null,
+                ),
+              )
                   : Container(),
               role == 'Subdealer'|| role =='DealerAgent'
                   ? Container(
-                      child: buildImageLoction(),
-                    )
+                child: buildImageLoction(),
+              )
                   : Container(),
               Permessions.contains('05.02.02.02')
                   ? Container(
-                      height: 60,
-                      padding: EdgeInsets.only(top: 8),
-                      child: ListTile(
-                        leading: Container(
-                          width: 280,
-                          child: Text(
-                            "Postpaid.other_information".tr().toString(),
-                            style: TextStyle(
-                              color: Color(0xFF11120e),
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
+                height: 60,
+                padding: EdgeInsets.only(top: 8),
+                child: ListTile(
+                  leading: Container(
+                    width: 280,
+                    child: Text(
+                      "Postpaid.other_information".tr().toString(),
+                      style: TextStyle(
+                        color: Color(0xFF11120e),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
                       ),
-                    )
+                    ),
+                  ),
+                ),
+              )
                   : Container(),
               Permessions.contains('05.02.02.03')
                   ? Container(
-                      color: Colors.white,
-                      padding: EdgeInsets.only(left: 0, right: 0),
+                color: Colors.white,
+                padding: EdgeInsets.only(left: 0, right: 0),
+                child: Column(
+                  children: <Widget>[
+                    Container(
+                      alignment: Alignment.centerLeft,
                       child: Column(
                         children: <Widget>[
-                          Container(
-                            alignment: Alignment.centerLeft,
-                            child: Column(
-                              children: <Widget>[
-                                SizedBox(
-                                  height: 20,
-                                ),
-                                extraFreeMonths(),
-                                SizedBox(
-                                  height: 10,
-                                ),
-                                extraMonth == true
-                                    ? Container(
-                                        padding:
-                                            EdgeInsets.only(left: 15, right: 15),
-                                        child: buildExtraMonths())
-                                    : Container(),
-                                extraMonth == true && emptyExtraFreeMonth == true
-                                    ? ReusableRequiredText(
-                                        text: "Postpaid.this_feild_is_required"
-                                            .tr()
-                                            .toString())
-                                    : Container(),
-                                SizedBox(
-                                  height: 20,
-                                ),
-                                extenderFree(),
-                                SizedBox(
-                                  height: 10,
-                                ),
-                                freeExtender == true
-                                    ? Container(
-                                        padding:
-                                            EdgeInsets.only(left: 15, right: 15),
-                                        child: buildextenderFree())
-                                    : Container(),
-                                freeExtender == true && emptyFreeExtender == true
-                                    ? ReusableRequiredText(
-                                        text: "Postpaid.this_feild_is_required"
-                                            .tr()
-                                            .toString())
-                                    : Container(),
-                                SizedBox(
-                                  height: 15,
-                                ),
-                                extraPromotion(),
-                                SizedBox(
-                                  height: 10,
-                                ),
-                                isPromotion==true? Container(
-                                    padding:
-                                    EdgeInsets.only(left: 15, right: 15),
-                                    child: buildPromotion()):Container(),
-                              ],
-                            ),
+                          SizedBox(
+                            height: 20,
                           ),
+                          extraFreeMonths(),
                           SizedBox(
                             height: 10,
-                          )
+                          ),
+                          extraMonth == true
+                              ? Container(
+                              padding:
+                              EdgeInsets.only(left: 15, right: 15),
+                              child: buildExtraMonths())
+                              : Container(),
+                          extraMonth == true && emptyExtraFreeMonth == true
+                              ? ReusableRequiredText(
+                              text: "Postpaid.this_feild_is_required"
+                                  .tr()
+                                  .toString())
+                              : Container(),
+                          SizedBox(
+                            height: 20,
+                          ),
+                          extenderFree(),
+                          SizedBox(
+                            height: 10,
+                          ),
+                          freeExtender == true
+                              ? Container(
+                              padding:
+                              EdgeInsets.only(left: 15, right: 15),
+                              child: buildextenderFree())
+                              : Container(),
+                          freeExtender == true && emptyFreeExtender == true
+                              ? ReusableRequiredText(
+                              text: "Postpaid.this_feild_is_required"
+                                  .tr()
+                                  .toString())
+                              : Container(),
+                          SizedBox(
+                            height: 15,
+                          ),
+                          extraPromotion(),
+                          SizedBox(
+                            height: 10,
+                          ),
+                          isPromotion==true? Container(
+                              padding:
+                              EdgeInsets.only(left: 15, right: 15),
+                              child: buildPromotion()):Container(),
                         ],
                       ),
+                    ),
+                    SizedBox(
+                      height: 10,
                     )
+                  ],
+                ),
+              )
                   : Container(),
               SizedBox(height: 20),
               buildUserNote(),
@@ -5777,132 +6007,132 @@ class _NonJordainianCustomerInformationState
                     onPressed: isDisabled == true
                         ? null
                         : () async {
-                            if (UserName.text == '') {
-                              setState(() {
-                                emptyUserName = true;
-                              });
-                            }
-                            if (UserName.text != '') {
-                              setState(() {
-                                emptyUserName = false;
-                              });
-                            }
+                      if (UserName.text == '') {
+                        setState(() {
+                          emptyUserName = true;
+                        });
+                      }
+                      if (UserName.text != '') {
+                        setState(() {
+                          emptyUserName = false;
+                        });
+                      }
 
-                            if (Password.text == '') {
-                              setState(() {
-                                emptyPassword = true;
-                              });
-                            }
-                            if (Password.text != '') {
-                              setState(() {
-                                emptyPassword = false;
-                              });
-                            }
+                      if (Password.text == '') {
+                        setState(() {
+                          emptyPassword = true;
+                        });
+                      }
+                      if (Password.text != '') {
+                        setState(() {
+                          emptyPassword = false;
+                        });
+                      }
 
-                            if(documentExpiryDate.text ==""){
-                              setState(() {
-                                emptyDocumentExpiryDate = true;
-                              });
-                            }
-                            if(documentExpiryDate.text !=""){
-                              setState(() {
-                                emptyDocumentExpiryDate = false;
-                              });
-                            }
+                      if(documentExpiryDate.text ==""){
+                        setState(() {
+                          emptyDocumentExpiryDate = true;
+                        });
+                      }
+                      if(documentExpiryDate.text !=""){
+                        setState(() {
+                          emptyDocumentExpiryDate = false;
+                        });
+                      }
 
-                            if (FirstName.text == '') {
-                              setState(() {
-                                emptyFirstName = true;
-                              });
-                            }
-                            if (FirstName.text != '') {
-                              setState(() {
-                                emptyFirstName = false;
-                              });
-                            }
-
-
-                            if(selectedCounrty_key == null){
-                              setState(() {
-                                emptySelectedCountry=true;
-                              });
-                            }
-
-                            if(selectedCounrty_key != null){
-                              setState(() {
-                                emptySelectedCountry=false;
-                              });
-                            }
-
-                        /////////////////////////////////////////////new 17-4-2023///////////////////////////////////////
-                            if(role=="ZainTelesales"){
-                                if(on_BEHALF==true){
-                                  if(selectedBEHALF_key==null){
-                                    setState(() {
-                                      emptyselectedBEHALF=true;
-                                    });
-                                  }
-                                  else{
-                                    setState(() {
-                                      emptyselectedBEHALF=false;
-                                    });
-                                  }
-                                }
+                      if (FirstName.text == '') {
+                        setState(() {
+                          emptyFirstName = true;
+                        });
+                      }
+                      if (FirstName.text != '') {
+                        setState(() {
+                          emptyFirstName = false;
+                        });
+                      }
 
 
-                            if(reseller==true){
-                              if(selectedReseller_key==null){
-                                setState(() {
-                                  emptyselectedReseller=true;
-                                });
-                              }
-                              else{
-                                setState(() {
-                                  emptyselectedReseller=false;
-                                });
-                              }
-                            }
-                            }
-                            ///////////////////////////////////////////////////////////////////////////////////////////////
-                            if(Permessions.contains("05.02.02.04")==true){
-                              if (switchValidateSalesLead == true) {
-                                if (optionValue == null) {
-                                  setState(() {
-                                    emptyOption = true;
-                                  });
-                                }
-                                if (optionValue != null) {
-                                  setState(() {
-                                    emptyOption = false;
-                                  });
-                                }
-                                if (salesLeadValue.text == "") {
-                                  setState(() {
-                                    emptysalesLeadValue = true;
-                                  });
-                                }
-                                if (salesLeadValue.text != "") {
-                                  setState(() {
-                                    emptysalesLeadValue = false;
-                                  });
-                                }
-                              }
-                              if (switchValidateSalesLead == false) {
-                                setState(() {
-                                  emptysalesLeadValue = false;
-                                  emptyOption = false;
-                                });
-                              }
+                      if(selectedCounrty_key == null){
+                        setState(() {
+                          emptySelectedCountry=true;
+                        });
+                      }
 
-                            }
-                            else{
-                              setState(() {
-                                emptysalesLeadValue = false;
-                                emptyOption = false;
-                              });
-                            }
+                      if(selectedCounrty_key != null){
+                        setState(() {
+                          emptySelectedCountry=false;
+                        });
+                      }
 
-                            /*if(SecondName.text==''){
+                      /////////////////////////////////////////////new 17-4-2023///////////////////////////////////////
+                      if(role=="ZainTelesales"){
+                        if(on_BEHALF==true){
+                          if(selectedBEHALF_key==null){
+                            setState(() {
+                              emptyselectedBEHALF=true;
+                            });
+                          }
+                          else{
+                            setState(() {
+                              emptyselectedBEHALF=false;
+                            });
+                          }
+                        }
+
+
+                        if(reseller==true){
+                          if(selectedReseller_key==null){
+                            setState(() {
+                              emptyselectedReseller=true;
+                            });
+                          }
+                          else{
+                            setState(() {
+                              emptyselectedReseller=false;
+                            });
+                          }
+                        }
+                      }
+                      ///////////////////////////////////////////////////////////////////////////////////////////////
+                      if(Permessions.contains("05.02.02.04")==true){
+                        if (switchValidateSalesLead == true) {
+                          if (optionValue == null) {
+                            setState(() {
+                              emptyOption = true;
+                            });
+                          }
+                          if (optionValue != null) {
+                            setState(() {
+                              emptyOption = false;
+                            });
+                          }
+                          if (salesLeadValue.text == "") {
+                            setState(() {
+                              emptysalesLeadValue = true;
+                            });
+                          }
+                          if (salesLeadValue.text != "") {
+                            setState(() {
+                              emptysalesLeadValue = false;
+                            });
+                          }
+                        }
+                        if (switchValidateSalesLead == false) {
+                          setState(() {
+                            emptysalesLeadValue = false;
+                            emptyOption = false;
+                          });
+                        }
+
+                      }
+                      else{
+                        setState(() {
+                          emptysalesLeadValue = false;
+                          emptyOption = false;
+                        });
+                      }
+
+                      /*if(SecondName.text==''){
                         setState(() {
                           emptySecondName=true;
                         });
@@ -5911,7 +6141,7 @@ class _NonJordainianCustomerInformationState
                           emptySecondName=false;
                         });
                       }*/
-                            /*  if(ThirdName.text==''){
+                      /*  if(ThirdName.text==''){
                         setState(() {
                           emptyThirdName=true;
                         });
@@ -5921,233 +6151,233 @@ class _NonJordainianCustomerInformationState
                         });
                       }*/
 
-                            if (LastName.text == '') {
-                              setState(() {
-                                emptyLastName = true;
-                              });
-                            }
-                            if (LastName.text != '') {
-                              setState(() {
-                                emptyLastName = false;
-                              });
-                            }
+                      if (LastName.text == '') {
+                        setState(() {
+                          emptyLastName = true;
+                        });
+                      }
+                      if (LastName.text != '') {
+                        setState(() {
+                          emptyLastName = false;
+                        });
+                      }
 
-                            if (referenceNumber.text == '') {
-                              setState(() {
-                                emptyReferenceNumber = true;
-                              });
-                            }
-                            if (referenceNumber.text != '') {
-                              setState(() {
-                                emptyReferenceNumber = false;
-                              });
-                            }
+                      if (referenceNumber.text == '') {
+                        setState(() {
+                          emptyReferenceNumber = true;
+                        });
+                      }
+                      if (referenceNumber.text != '') {
+                        setState(() {
+                          emptyReferenceNumber = false;
+                        });
+                      }
 
-                            if (referenceNumber.text == '') {
-                              setState(() {
-                                emptyReferenceNumber = true;
-                              });
-                            }
-                            if (referenceNumber.text != '') {
-                              setState(() {
-                                emptyReferenceNumber = false;
-                              });
-                              if (referenceNumber.text.length != 10) {
-                                setState(() {
-                                  errorReferenceNumber = true;
-                                });
-                              } else {
-                                setState(() {
-                                  errorReferenceNumber = false;
-                                });
-                              }
-                            }
+                      if (referenceNumber.text == '') {
+                        setState(() {
+                          emptyReferenceNumber = true;
+                        });
+                      }
+                      if (referenceNumber.text != '') {
+                        setState(() {
+                          emptyReferenceNumber = false;
+                        });
+                        if (referenceNumber.text.length != 10) {
+                          setState(() {
+                            errorReferenceNumber = true;
+                          });
+                        } else {
+                          setState(() {
+                            errorReferenceNumber = false;
+                          });
+                        }
+                      }
 
-                            if (referenceNumber2.text == '') {
-                              setState(() {
-                                emptySecondReferenceNumber = true;
-                              });
-                            } else if (referenceNumber2.text != '') {
-                              setState(() {
-                                emptySecondReferenceNumber = false;
-                              });
-                              if (referenceNumber2.text == referenceNumber.text) {
-                                setState(() {
-                                  duplicateSecondReferenceNumber = true;
-                                });
-                              } else {
-                                setState(() {
-                                  duplicateSecondReferenceNumber = false;
-                                });
-                              }
+                      if (referenceNumber2.text == '') {
+                        setState(() {
+                          emptySecondReferenceNumber = true;
+                        });
+                      } else if (referenceNumber2.text != '') {
+                        setState(() {
+                          emptySecondReferenceNumber = false;
+                        });
+                        if (referenceNumber2.text == referenceNumber.text) {
+                          setState(() {
+                            duplicateSecondReferenceNumber = true;
+                          });
+                        } else {
+                          setState(() {
+                            duplicateSecondReferenceNumber = false;
+                          });
+                        }
 
-                              if (referenceNumber2.text.length != 10) {
-                                setState(() {
-                                  errorSecondReferenceNumber = true;
-                                });
-                              } else {
-                                setState(() {
-                                  errorSecondReferenceNumber = false;
-                                });
-                              }
-                            }
+                        if (referenceNumber2.text.length != 10) {
+                          setState(() {
+                            errorSecondReferenceNumber = true;
+                          });
+                        } else {
+                          setState(() {
+                            errorSecondReferenceNumber = false;
+                          });
+                        }
+                      }
 
-                            if (role == 'Subdealer' || role =='DealerAgent') {
-                              if (area == null) {
-                                setState(() {
-                                  emptyArea = true;
-                                });
-                              }
-                              if (area != null) {
-                                setState(() {
-                                  emptyArea = false;
-                                });
-                              }
-                              if (street == null) {
-                                setState(() {
-                                  emptyStreet = true;
-                                });
-                              }
-                              if (street != null) {
-                                setState(() {
-                                  emptyStreet = false;
-                                });
-                              }
-                              if (building == null) {
-                                setState(() {
-                                  emptyBuilding = true;
-                                });
-                              }
-                              if (building != null) {
-                                setState(() {
-                                  emptyBuilding = false;
-                                });
-                              }
-                            } else {
-                              if (buildingCode.text == '') {
-                                setState(() {
-                                  emptyBuildinCode = true;
-                                });
-                              }
-                              if (buildingCode.text != '') {
-                                setState(() {
-                                  emptyBuildinCode = false;
-                                });
-                              }
-                            }
+                      if (role == 'Subdealer' || role =='DealerAgent') {
+                        if (area == null) {
+                          setState(() {
+                            emptyArea = true;
+                          });
+                        }
+                        if (area != null) {
+                          setState(() {
+                            emptyArea = false;
+                          });
+                        }
+                        if (street == null) {
+                          setState(() {
+                            emptyStreet = true;
+                          });
+                        }
+                        if (street != null) {
+                          setState(() {
+                            emptyStreet = false;
+                          });
+                        }
+                        if (building == null) {
+                          setState(() {
+                            emptyBuilding = true;
+                          });
+                        }
+                        if (building != null) {
+                          setState(() {
+                            emptyBuilding = false;
+                          });
+                        }
+                      } else {
+                        if (buildingCode.text == '') {
+                          setState(() {
+                            emptyBuildinCode = true;
+                          });
+                        }
+                        if (buildingCode.text != '') {
+                          setState(() {
+                            emptyBuildinCode = false;
+                          });
+                        }
+                      }
 
-                            if (day.text == '') {
-                              setState(() {
-                                emptyDay = true;
-                              });
-                            }
-                            if (day.text != '') {
-                              setState(() {
-                                emptyDay = false;
-                              });
-                            }
-                            if (month.text == '') {
-                              setState(() {
-                                emptyMonth = true;
-                              });
-                            }
-                            if (month.text != '') {
-                              setState(() {
-                                emptyMonth = false;
-                              });
-                            }
-                            if (year.text == '') {
-                              setState(() {
-                                emptyYear = true;
-                              });
-                            }
-                            if (year.text != '') {
-                              setState(() {
-                                emptyYear = false;
-                              });
+                      if (day.text == '') {
+                        setState(() {
+                          emptyDay = true;
+                        });
+                      }
+                      if (day.text != '') {
+                        setState(() {
+                          emptyDay = false;
+                        });
+                      }
+                      if (month.text == '') {
+                        setState(() {
+                          emptyMonth = true;
+                        });
+                      }
+                      if (month.text != '') {
+                        setState(() {
+                          emptyMonth = false;
+                        });
+                      }
+                      if (year.text == '') {
+                        setState(() {
+                          emptyYear = true;
+                        });
+                      }
+                      if (year.text != '') {
+                        setState(() {
+                          emptyYear = false;
+                        });
 
-                              if (year.text.length < 4) {
-                                setState(() {
-                                  errorYear = true;
-                                });
-                              } else {
-                                setState(() {
-                                  errorYear = false;
-                                });
-                              }
-                            }
+                        if (year.text.length < 4) {
+                          setState(() {
+                            errorYear = true;
+                          });
+                        } else {
+                          setState(() {
+                            errorYear = false;
+                          });
+                        }
+                      }
 
-                            if (day.text != '' &&
-                                month.text != '' &&
-                                year.text != '') {
+                      if (day.text != '' &&
+                          month.text != '' &&
+                          year.text != '') {
 
-                              calculateAge();
-                            }
-                            if (isMigrate == true) {
-                              if (mbbMsisdn.text == '') {
-                                setState(() {
-                                  emptyMBBMSISDN = true;
-                                });
-                              }
-                              if (mbbMsisdn.text != '') {
-                                setState(() {
-                                  emptyMBBMSISDN = false;
-                                });
-                              }
-                            }
-                            if (isMigrate == false) {
-                              setState(() {
-                                emptyMBBMSISDN = false;
-                              });
-                            }
+                        calculateAge();
+                      }
+                      if (isMigrate == true) {
+                        if (mbbMsisdn.text == '') {
+                          setState(() {
+                            emptyMBBMSISDN = true;
+                          });
+                        }
+                        if (mbbMsisdn.text != '') {
+                          setState(() {
+                            emptyMBBMSISDN = false;
+                          });
+                        }
+                      }
+                      if (isMigrate == false) {
+                        setState(() {
+                          emptyMBBMSISDN = false;
+                        });
+                      }
 
-                            if (role == 'Subdealer' || role =='DealerAgent') {
-                              if (img64Location == null) {
-                                setState(() {
-                                  imageLocationRequired = true;
-                                });
-                              }
-                              if (img64Location != null) {
-                                setState(() {
-                                  imageLocationRequired = false;
-                                });
-                              }
-                            }
-                            if (img64Passport == null) {
-                              setState(() {
-                                imagePassportRequired = true;
-                              });
-                            }
-                            if (img64Passport != null) {
-                              setState(() {
-                                imagePassportRequired = false;
-                              });
-                            }
+                      if (role == 'Subdealer' || role =='DealerAgent') {
+                        if (img64Location == null) {
+                          setState(() {
+                            imageLocationRequired = true;
+                          });
+                        }
+                        if (img64Location != null) {
+                          setState(() {
+                            imageLocationRequired = false;
+                          });
+                        }
+                      }
+                      // if (img64Passport == null) {
+                      //   setState(() {
+                      //     imagePassportRequired = true;
+                      //   });
+                      // }
+                      // if (img64Passport != null) {
+                      //   setState(() {
+                      //     imagePassportRequired = false;
+                      //   });
+                      // }
 
-                            if (Permessions.contains('05.02.02.03')) {
-                              if (extra_month == null) {
-                                setState(() {
-                                  emptyExtraFreeMonth = true;
-                                });
-                              }
-                              if (extra_month != null) {
-                                setState(() {
-                                  emptyExtraFreeMonth = false;
-                                });
-                              }
-                            }
-                            if (Permessions.contains('05.02.02.02')) {
-                              if (free_extender == null) {
-                                setState(() {
-                                  emptyFreeExtender = true;
-                                });
-                              }
-                              if (free_extender != null) {
-                                setState(() {
-                                  emptyFreeExtender = false;
-                                });
-                              }
-                            }
+                      if (Permessions.contains('05.02.02.03')) {
+                        if (extra_month == null) {
+                          setState(() {
+                            emptyExtraFreeMonth = true;
+                          });
+                        }
+                        if (extra_month != null) {
+                          setState(() {
+                            emptyExtraFreeMonth = false;
+                          });
+                        }
+                      }
+                      if (Permessions.contains('05.02.02.02')) {
+                        if (free_extender == null) {
+                          setState(() {
+                            emptyFreeExtender = true;
+                          });
+                        }
+                        if (free_extender != null) {
+                          setState(() {
+                            emptyFreeExtender = false;
+                          });
+                        }
+                      }
 ////////////////////////////////////////////////////////////////////////////////new 17-4-023/////////////////////////////////////////////////////////////////////
                       if(role=="ZainTelesales"){
 
@@ -6217,7 +6447,7 @@ class _NonJordainianCustomerInformationState
                               context: context,
                               animation: StyledToastAnimation.scale,
                               fullWidth: true);
-                         /* if (duplicateSecondReferenceNumber == false &&
+                          /* if (duplicateSecondReferenceNumber == false &&
                               area != null &&
                               street != null &&
                               building != null &&
@@ -6342,7 +6572,7 @@ class _NonJordainianCustomerInformationState
                               context: context,
                               animation: StyledToastAnimation.scale,
                               fullWidth: true);
-                        /*  if (duplicateSecondReferenceNumber == false &&
+                          /*  if (duplicateSecondReferenceNumber == false &&
                               area != null &&
                               street != null &&
                               building != null &&
@@ -6403,1078 +6633,1084 @@ class _NonJordainianCustomerInformationState
 
 
                       }
- ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+                      ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-                            if(switchValidateSalesLead==true){
-                              if (isMigrate == true) {
-                                  if (role == 'Subdealer' || role =='DealerAgent') {
+                      if(switchValidateSalesLead==true){
+                        if (isMigrate == true) {
+                          if (role == 'Subdealer' || role =='DealerAgent') {
 
-                                  if (duplicateSecondReferenceNumber == false &&
-                                      area != null &&
-                                      street != null &&
-                                      building != null &&
-                                      img64Passport != null &&
-                                      img64Location != null &&
-                                      referenceNumber.text != '' &&
-                                      UserName.text != '' &&
-                                      Password.text != '' &&
-                                      documentExpiryDate.text != ''&&
-                                      mbbMsisdn.text != '' &&
-                                      optionValue!=null &&
-                                      salesLeadValue.text!=""&&
-                                      referenceNumber2.text != '' &&
-                                      FirstName.text != '' &&
-                                      LastName.text != '' &&
-                                      day.text != '' &&
-                                      month.text != '' &&
-                                      year.text != ''
-                                  &&selectedCounrty_key != null) {
-                                    if (int.parse(day.text) >= 1 &&
-                                        int.parse(day.text) <= 31) {
-                                      errorDay = false;
-                                    } else {
-                                      setState(() {
-                                        errorDay = true;
-                                      });
-                                    }
-                                    if (int.parse(month.text) >= 1 &&
-                                        int.parse(month.text) <= 12) {
-                                      errorMonthe = false;
-                                    } else {
-                                      setState(() {
-                                        errorMonthe = true;
-                                      });
-                                    }
+                            if (duplicateSecondReferenceNumber == false &&
+                                area != null &&
+                                street != null &&
+                                building != null &&
+                                img64Passport != null &&
+                                img64Location != null &&
+                                referenceNumber.text != '' &&
+                                UserName.text != '' &&
+                                Password.text != '' &&
+                                documentExpiryDate.text != ''&&
+                                mbbMsisdn.text != '' &&
+                                optionValue!=null &&
+                                salesLeadValue.text!=""&&
+                                referenceNumber2.text != '' &&
+                                FirstName.text != '' &&
+                                LastName.text != '' &&
+                                day.text != '' &&
+                                month.text != '' &&
+                                year.text != ''
+                                &&selectedCounrty_key != null) {
+                              if (int.parse(day.text) >= 1 &&
+                                  int.parse(day.text) <= 31) {
+                                errorDay = false;
+                              } else {
+                                setState(() {
+                                  errorDay = true;
+                                });
+                              }
+                              if (int.parse(month.text) >= 1 &&
+                                  int.parse(month.text) <= 12) {
+                                errorMonthe = false;
+                              } else {
+                                setState(() {
+                                  errorMonthe = true;
+                                });
+                              }
 
-                                    if (errorDay == false &&
-                                        errorMonthe == false &&
-                                        birthDateValid == true) {
-                                      showAlertDialogSaveData(
-                                          context,
-                                          'هل أنت متأكد من حفظ البيانات',
-                                          'Are you sure you want to save data');
-                                    }
-                                  }else{
-                                    showToast("Notifications_Form.notifications_required_fields".tr().toString(),
-                                        context: context,
-                                        animation: StyledToastAnimation.scale,
-                                        fullWidth: true);
+                              if (errorDay == false &&
+                                  errorMonthe == false &&
+                                  birthDateValid == true) {
+                                showAlertDialogSaveData(
+                                    context,
+                                    'هل أنت متأكد من حفظ البيانات',
+                                    'Are you sure you want to save data');
+                              }
+                            }else{
+                              showToast("Notifications_Form.notifications_required_fields".tr().toString(),
+                                  context: context,
+                                  animation: StyledToastAnimation.scale,
+                                  fullWidth: true);
+                            }
+                          }
+                          else if
+                          (role != 'Subdealer' &&  role !='DealerAgent' && role!="ZainTelesales") {
+                            if (extraMonth == true) {
+                              if (freeExtender == true) {
+                                if (duplicateSecondReferenceNumber == false &&
+                                    buildingCode.text != '' &&
+                                    img64Passport != null &&
+                                    referenceNumber.text != '' &&
+                                    UserName.text != '' &&
+                                    Password.text != '' &&
+                                    documentExpiryDate.text != ''&&
+                                    mbbMsisdn.text != '' &&
+                                    optionValue!=null &&
+                                    salesLeadValue.text!=""&&
+                                    referenceNumber2.text != '' &&
+                                    FirstName.text != '' &&
+                                    LastName.text != '' &&
+                                    day.text != '' &&
+                                    month.text != '' &&
+                                    year.text != '' &&
+                                    extra_month != null &&
+                                    free_extender != null&&
+                                    selectedCounrty_key != null) {
+                                  if (int.parse(day.text) >= 1 &&
+                                      int.parse(day.text) <= 31) {
+                                    errorDay = false;
+                                  } else {
+                                    setState(() {
+                                      errorDay = true;
+                                    });
                                   }
+                                  if (int.parse(month.text) >= 1 &&
+                                      int.parse(month.text) <= 12) {
+                                    errorMonthe = false;
+                                  } else {
+                                    setState(() {
+                                      errorMonthe = true;
+                                    });
+                                  }
+
+                                  if (errorDay == false &&
+                                      errorMonthe == false &&
+                                      birthDateValid == true) {
+                                    showAlertDialogSaveData(
+                                        context,
+                                        'هل أنت متأكد من حفظ البيانات',
+                                        'Are you sure you want to save data');
+                                  }
+                                }else{
+                                  showToast("Notifications_Form.notifications_required_fields".tr().toString(),
+                                      context: context,
+                                      animation: StyledToastAnimation.scale,
+                                      fullWidth: true);
                                 }
-                                  else if
-                                  (role != 'Subdealer' &&  role !='DealerAgent' && role!="ZainTelesales") {
-                                  if (extraMonth == true) {
-                                    if (freeExtender == true) {
-                                      if (duplicateSecondReferenceNumber == false &&
-                                          buildingCode.text != '' &&
-                                          img64Passport != null &&
-                                          referenceNumber.text != '' &&
-                                          UserName.text != '' &&
-                                          Password.text != '' &&
-                                          documentExpiryDate.text != ''&&
-                                          mbbMsisdn.text != '' &&
-                                          optionValue!=null &&
-                                          salesLeadValue.text!=""&&
-                                          referenceNumber2.text != '' &&
-                                          FirstName.text != '' &&
-                                          LastName.text != '' &&
-                                          day.text != '' &&
-                                          month.text != '' &&
-                                          year.text != '' &&
-                                          extra_month != null &&
-                                          free_extender != null&&
-                                          selectedCounrty_key != null) {
-                                        if (int.parse(day.text) >= 1 &&
-                                            int.parse(day.text) <= 31) {
-                                          errorDay = false;
-                                        } else {
-                                          setState(() {
-                                            errorDay = true;
-                                          });
-                                        }
-                                        if (int.parse(month.text) >= 1 &&
-                                            int.parse(month.text) <= 12) {
-                                          errorMonthe = false;
-                                        } else {
-                                          setState(() {
-                                            errorMonthe = true;
-                                          });
-                                        }
-
-                                        if (errorDay == false &&
-                                            errorMonthe == false &&
-                                            birthDateValid == true) {
-                                          showAlertDialogSaveData(
-                                              context,
-                                              'هل أنت متأكد من حفظ البيانات',
-                                              'Are you sure you want to save data');
-                                        }
-                                      }else{
-                                        showToast("Notifications_Form.notifications_required_fields".tr().toString(),
-                                            context: context,
-                                            animation: StyledToastAnimation.scale,
-                                            fullWidth: true);
-                                      }
-                                    } else if (freeExtender == false) {
-                                      if (duplicateSecondReferenceNumber == false &&
-                                          buildingCode.text != '' &&
-                                          img64Passport != null &&
-                                          referenceNumber.text != '' &&
-                                          UserName.text != '' &&
-                                          Password.text != '' &&
-                                          documentExpiryDate.text != ''&&
-                                          mbbMsisdn.text != '' &&
-                                          optionValue!=null &&
-                                          salesLeadValue.text!=""&&
-                                          referenceNumber2.text != '' &&
-                                          FirstName.text != '' &&
-                                          LastName.text != '' &&
-                                          day.text != '' &&
-                                          month.text != '' &&
-                                          year.text != '' &&
-                                          extra_month != null&&
-                                          selectedCounrty_key != null) {
-                                        if (int.parse(day.text) >= 1 &&
-                                            int.parse(day.text) <= 31) {
-                                          errorDay = false;
-                                        } else {
-                                          setState(() {
-                                            errorDay = true;
-                                          });
-                                        }
-                                        if (int.parse(month.text) >= 1 &&
-                                            int.parse(month.text) <= 12) {
-                                          errorMonthe = false;
-                                        } else {
-                                          setState(() {
-                                            errorMonthe = true;
-                                          });
-                                        }
-
-                                        if (errorDay == false &&
-                                            errorMonthe == false &&
-                                            birthDateValid == true) {
-                                          showAlertDialogSaveData(
-                                              context,
-                                              'هل أنت متأكد من حفظ البيانات',
-                                              'Are you sure you want to save data');
-                                        }
-                                      }else{
-                                        showToast("Notifications_Form.notifications_required_fields".tr().toString(),
-                                            context: context,
-                                            animation: StyledToastAnimation.scale,
-                                            fullWidth: true);
-                                      }
-                                    }
-                                  } else if (extraMonth == false) {
-                                    if (freeExtender == true) {
-                                      if (duplicateSecondReferenceNumber == false &&
-                                          buildingCode.text != '' &&
-                                          img64Passport != null &&
-                                          referenceNumber.text != '' &&
-                                          UserName.text != '' &&
-                                          Password.text != '' &&
-                                          documentExpiryDate.text != ''&&
-                                          mbbMsisdn.text != '' &&
-                                          optionValue!=null &&
-                                          salesLeadValue.text!=""&&
-                                          referenceNumber2.text != '' &&
-                                          FirstName.text != '' &&
-                                          LastName.text != '' &&
-                                          day.text != '' &&
-                                          month.text != '' &&
-                                          year.text != '' &&
-                                          free_extender != null&&
-                                          selectedCounrty_key != null) {
-                                        if (int.parse(day.text) >= 1 &&
-                                            int.parse(day.text) <= 31) {
-                                          errorDay = false;
-                                        } else {
-                                          setState(() {
-                                            errorDay = true;
-                                          });
-                                        }
-                                        if (int.parse(month.text) >= 1 &&
-                                            int.parse(month.text) <= 12) {
-                                          errorMonthe = false;
-                                        } else {
-                                          setState(() {
-                                            errorMonthe = true;
-                                          });
-                                        }
-
-                                        if (errorDay == false &&
-                                            errorMonthe == false &&
-                                            birthDateValid == true) {
-                                          showAlertDialogSaveData(
-                                              context,
-                                              'هل أنت متأكد من حفظ البيانات',
-                                              'Are you sure you want to save data');
-                                        }
-                                      }
-                                    } else if (freeExtender == false) {
-                                      if (duplicateSecondReferenceNumber == false &&
-                                          buildingCode.text != '' &&
-                                          img64Passport != null &&
-                                          referenceNumber.text != '' &&
-                                          UserName.text != '' &&
-                                          Password.text != '' &&
-                                          documentExpiryDate.text != ''&&
-                                          mbbMsisdn.text != '' &&
-                                          optionValue!=null &&
-                                          salesLeadValue.text!=""&&
-                                          referenceNumber2.text != '' &&
-                                          FirstName.text != '' &&
-                                          LastName.text != '' &&
-                                          day.text != '' &&
-                                          month.text != '' &&
-                                          year.text != '' &&
-                                          selectedCounrty_key != null) {
-                                        if (int.parse(day.text) >= 1 &&
-                                            int.parse(day.text) <= 31) {
-                                          errorDay = false;
-                                        } else {
-                                          setState(() {
-                                            errorDay = true;
-                                          });
-                                        }
-                                        if (int.parse(month.text) >= 1 &&
-                                            int.parse(month.text) <= 12) {
-                                          errorMonthe = false;
-                                        } else {
-                                          setState(() {
-                                            errorMonthe = true;
-                                          });
-                                        }
-
-                                        if (errorDay == false &&
-                                            errorMonthe == false &&
-                                            birthDateValid == true) {
-                                          showAlertDialogSaveData(
-                                              context,
-                                              'هل أنت متأكد من حفظ البيانات',
-                                              'Are you sure you want to save data');
-                                        }
-                                      }else{
-                                        showToast("Notifications_Form.notifications_required_fields".tr().toString(),
-                                            context: context,
-                                            animation: StyledToastAnimation.scale,
-                                            fullWidth: true);
-                                      }
-                                    }
+                              } else if (freeExtender == false) {
+                                if (duplicateSecondReferenceNumber == false &&
+                                    buildingCode.text != '' &&
+                                    img64Passport != null &&
+                                    referenceNumber.text != '' &&
+                                    UserName.text != '' &&
+                                    Password.text != '' &&
+                                    documentExpiryDate.text != ''&&
+                                    mbbMsisdn.text != '' &&
+                                    optionValue!=null &&
+                                    salesLeadValue.text!=""&&
+                                    referenceNumber2.text != '' &&
+                                    FirstName.text != '' &&
+                                    LastName.text != '' &&
+                                    day.text != '' &&
+                                    month.text != '' &&
+                                    year.text != '' &&
+                                    extra_month != null&&
+                                    selectedCounrty_key != null) {
+                                  if (int.parse(day.text) >= 1 &&
+                                      int.parse(day.text) <= 31) {
+                                    errorDay = false;
+                                  } else {
+                                    setState(() {
+                                      errorDay = true;
+                                    });
                                   }
+                                  if (int.parse(month.text) >= 1 &&
+                                      int.parse(month.text) <= 12) {
+                                    errorMonthe = false;
+                                  } else {
+                                    setState(() {
+                                      errorMonthe = true;
+                                    });
+                                  }
+
+                                  if (errorDay == false &&
+                                      errorMonthe == false &&
+                                      birthDateValid == true) {
+                                    showAlertDialogSaveData(
+                                        context,
+                                        'هل أنت متأكد من حفظ البيانات',
+                                        'Are you sure you want to save data');
+                                  }
+                                }else{
+                                  showToast("Notifications_Form.notifications_required_fields".tr().toString(),
+                                      context: context,
+                                      animation: StyledToastAnimation.scale,
+                                      fullWidth: true);
                                 }
                               }
-                              else if (isMigrate == false) {
-                                if( role=="ZainTelesales"){
-                                  if (duplicateSecondReferenceNumber == false &&
-                                      area != null &&
-                                      street != null &&
-                                      building != null &&
-                                      img64Passport != null &&
-                                      img64Location != null &&
-                                      referenceNumber.text != '' &&
-                                      optionValue!=null &&
-                                      salesLeadValue.text!=""&&
-                                      UserName.text != '' &&
-                                      Password.text != '' &&
-                                      documentExpiryDate.text != ''&&
-                                      referenceNumber2.text != '' &&
-                                      FirstName.text != '' &&
-                                      LastName.text != '' &&
-                                      day.text != '' &&
-                                      month.text != '' &&
-                                      year.text != ''&&
-                                      selectedBEHALF_key !=null &&
-                                  selectedReseller_key !=null &&
-                                      selectedCounrty_key != null) {
-                                    if (int.parse(day.text) >= 1 &&
-                                        int.parse(day.text) <= 31) {
-                                      errorDay = false;
-                                    } else {
-                                      setState(() {
-                                        errorDay = true;
-                                      });
-                                    }
-                                    if (int.parse(month.text) >= 1 &&
-                                        int.parse(month.text) <= 12) {
-                                      errorMonthe = false;
-                                    } else {
-                                      setState(() {
-                                        errorMonthe = true;
-                                      });
-                                    }
-
-                                    if (errorDay == false &&
-                                        errorMonthe == false &&
-                                        birthDateValid == true) {
-                                      showAlertDialogSaveData(
-                                          context,
-                                          'هل أنت متأكد من حفظ البيانات',
-                                          'Are you sure you want to save data');
-                                    }
-                                  }else{
-                                    showToast("Notifications_Form.notifications_required_fields".tr().toString(),
-                                        context: context,
-                                        animation: StyledToastAnimation.scale,
-                                        fullWidth: true);
+                            } else if (extraMonth == false) {
+                              if (freeExtender == true) {
+                                if (duplicateSecondReferenceNumber == false &&
+                                    buildingCode.text != '' &&
+                                    img64Passport != null &&
+                                    referenceNumber.text != '' &&
+                                    UserName.text != '' &&
+                                    Password.text != '' &&
+                                    documentExpiryDate.text != ''&&
+                                    mbbMsisdn.text != '' &&
+                                    optionValue!=null &&
+                                    salesLeadValue.text!=""&&
+                                    referenceNumber2.text != '' &&
+                                    FirstName.text != '' &&
+                                    LastName.text != '' &&
+                                    day.text != '' &&
+                                    month.text != '' &&
+                                    year.text != '' &&
+                                    free_extender != null&&
+                                    selectedCounrty_key != null) {
+                                  if (int.parse(day.text) >= 1 &&
+                                      int.parse(day.text) <= 31) {
+                                    errorDay = false;
+                                  } else {
+                                    setState(() {
+                                      errorDay = true;
+                                    });
+                                  }
+                                  if (int.parse(month.text) >= 1 &&
+                                      int.parse(month.text) <= 12) {
+                                    errorMonthe = false;
+                                  } else {
+                                    setState(() {
+                                      errorMonthe = true;
+                                    });
                                   }
 
-                                }
-                                if (role == 'Subdealer' || role =='DealerAgent') {
-                                  if (duplicateSecondReferenceNumber == false &&
-                                      area != null &&
-                                      street != null &&
-                                      building != null &&
-                                      img64Passport != null &&
-                                      img64Location != null &&
-                                      referenceNumber.text != '' &&
-                                      optionValue!=null &&
-                                      salesLeadValue.text!=""&&
-                                      UserName.text != '' &&
-                                      Password.text != '' &&
-                                      documentExpiryDate.text != ''&&
-                                      referenceNumber2.text != '' &&
-                                      FirstName.text != '' &&
-                                      LastName.text != '' &&
-                                      day.text != '' &&
-                                      month.text != '' &&
-                                      year.text != '' &&
-                                      selectedCounrty_key != null) {
-                                    if (int.parse(day.text) >= 1 &&
-                                        int.parse(day.text) <= 31) {
-                                      errorDay = false;
-                                    } else {
-                                      setState(() {
-                                        errorDay = true;
-                                      });
-                                    }
-                                    if (int.parse(month.text) >= 1 &&
-                                        int.parse(month.text) <= 12) {
-                                      errorMonthe = false;
-                                    } else {
-                                      setState(() {
-                                        errorMonthe = true;
-                                      });
-                                    }
-
-                                    if (errorDay == false &&
-                                        errorMonthe == false &&
-                                        birthDateValid == true) {
-                                      showAlertDialogSaveData(
-                                          context,
-                                          'هل أنت متأكد من حفظ البيانات',
-                                          'Are you sure you want to save data');
-                                    }
-                                  }else{
-                                    showToast("Notifications_Form.notifications_required_fields".tr().toString(),
-                                        context: context,
-                                        animation: StyledToastAnimation.scale,
-                                        fullWidth: true);
-                                  }
-                                } else if (role != 'Subdealer' && role !='DealerAgent' && role!="ZainTelesales") {
-                                  if (extraMonth == true) {
-                                    if (freeExtender == true) {
-                                      if (duplicateSecondReferenceNumber == false &&
-                                          buildingCode.text != '' &&
-                                          img64Passport != null &&
-                                          referenceNumber.text != '' &&
-                                          UserName.text != '' &&
-                                          Password.text != '' &&
-                                          documentExpiryDate.text != ''&&
-                                          optionValue!=null &&
-                                          salesLeadValue.text!=""&&
-                                          referenceNumber2.text != '' &&
-                                          FirstName.text != '' &&
-                                          LastName.text != '' &&
-                                          day.text != '' &&
-                                          month.text != '' &&
-                                          year.text != '' &&
-                                          extra_month != null &&
-                                          free_extender != null &&
-                                          selectedCounrty_key != null) {
-                                        if (int.parse(day.text) >= 1 &&
-                                            int.parse(day.text) <= 31) {
-                                          errorDay = false;
-                                        } else {
-                                          setState(() {
-                                            errorDay = true;
-                                          });
-                                        }
-                                        if (int.parse(month.text) >= 1 &&
-                                            int.parse(month.text) <= 12) {
-                                          errorMonthe = false;
-                                        } else {
-                                          setState(() {
-                                            errorMonthe = true;
-                                          });
-                                        }
-
-                                        if (errorDay == false &&
-                                            errorMonthe == false &&
-                                            birthDateValid == true) {
-                                          showAlertDialogSaveData(
-                                              context,
-                                              'هل أنت متأكد من حفظ البيانات',
-                                              'Are you sure you want to save data');
-                                        }
-                                      }else{
-                                        showToast("Notifications_Form.notifications_required_fields".tr().toString(),
-                                            context: context,
-                                            animation: StyledToastAnimation.scale,
-                                            fullWidth: true);
-                                      }
-                                    } else if (freeExtender == false) {
-                                      if (duplicateSecondReferenceNumber == false &&
-                                          buildingCode.text != '' &&
-                                          img64Passport != null &&
-                                          referenceNumber.text != '' &&
-                                          UserName.text != '' &&
-                                          Password.text != '' &&
-                                          documentExpiryDate.text != ''&&
-                                          referenceNumber2.text != '' &&
-                                          optionValue!=null &&
-                                          salesLeadValue.text!=""&&
-                                          FirstName.text != '' &&
-                                          LastName.text != '' &&
-                                          day.text != '' &&
-                                          month.text != '' &&
-                                          year.text != '' &&
-                                          extra_month != null &&
-                                          selectedCounrty_key != null) {
-                                        if (int.parse(day.text) >= 1 &&
-                                            int.parse(day.text) <= 31) {
-                                          errorDay = false;
-                                        } else {
-                                          setState(() {
-                                            errorDay = true;
-                                          });
-                                        }
-                                        if (int.parse(month.text) >= 1 &&
-                                            int.parse(month.text) <= 12) {
-                                          errorMonthe = false;
-                                        } else {
-                                          setState(() {
-                                            errorMonthe = true;
-                                          });
-                                        }
-
-                                        if (errorDay == false &&
-                                            errorMonthe == false &&
-                                            birthDateValid == true) {
-                                          showAlertDialogSaveData(
-                                              context,
-                                              'هل أنت متأكد من حفظ البيانات',
-                                              'Are you sure you want to save data');
-                                        }
-                                      }else{
-                                        showToast("Notifications_Form.notifications_required_fields".tr().toString(),
-                                            context: context,
-                                            animation: StyledToastAnimation.scale,
-                                            fullWidth: true);
-                                      }
-                                    }
-                                  } else if (extraMonth == false) {
-                                    if (freeExtender == true) {
-                                      if (duplicateSecondReferenceNumber == false &&
-                                          buildingCode.text != '' &&
-                                          img64Passport != null &&
-                                          referenceNumber.text != '' &&
-                                          UserName.text != '' &&
-                                          Password.text != '' &&
-                                          documentExpiryDate.text != ''&&
-                                          referenceNumber2.text != '' &&
-                                          optionValue!=null &&
-                                          salesLeadValue.text!=""&&
-                                          FirstName.text != '' &&
-                                          LastName.text != '' &&
-                                          day.text != '' &&
-                                          month.text != '' &&
-                                          year.text != '' &&
-                                          free_extender != null &&
-                                          selectedCounrty_key != null) {
-                                        if (int.parse(day.text) >= 1 &&
-                                            int.parse(day.text) <= 31) {
-                                          errorDay = false;
-                                        } else {
-                                          setState(() {
-                                            errorDay = true;
-                                          });
-                                        }
-                                        if (int.parse(month.text) >= 1 &&
-                                            int.parse(month.text) <= 12) {
-                                          errorMonthe = false;
-                                        } else {
-                                          setState(() {
-                                            errorMonthe = true;
-                                          });
-                                        }
-
-                                        if (errorDay == false &&
-                                            errorMonthe == false &&
-                                            birthDateValid == true) {
-                                          showAlertDialogSaveData(
-                                              context,
-                                              'هل أنت متأكد من حفظ البيانات',
-                                              'Are you sure you want to save data');
-                                        }
-                                      }else{
-                                        showToast("Notifications_Form.notifications_required_fields".tr().toString(),
-                                            context: context,
-                                            animation: StyledToastAnimation.scale,
-                                            fullWidth: true);
-                                      }
-                                    } else if (freeExtender == false) {
-                                      if (duplicateSecondReferenceNumber == false &&
-                                          buildingCode.text != '' &&
-                                          img64Passport != null &&
-                                          referenceNumber.text != '' &&
-                                          UserName.text != '' &&
-                                          Password.text != '' &&
-                                          documentExpiryDate.text != ''&&
-                                          referenceNumber2.text != '' &&
-                                          optionValue!=null &&
-                                          salesLeadValue.text!=""&&
-                                          FirstName.text != '' &&
-                                          LastName.text != '' &&
-                                          day.text != '' &&
-                                          month.text != '' &&
-                                          year.text != '' &&
-                                          selectedCounrty_key != null) {
-                                        if (int.parse(day.text) >= 1 &&
-                                            int.parse(day.text) <= 31) {
-                                          errorDay = false;
-                                        } else {
-                                          setState(() {
-                                            errorDay = true;
-                                          });
-                                        }
-                                        if (int.parse(month.text) >= 1 &&
-                                            int.parse(month.text) <= 12) {
-                                          errorMonthe = false;
-                                        } else {
-                                          setState(() {
-                                            errorMonthe = true;
-                                          });
-                                        }
-
-                                        if (errorDay == false &&
-                                            errorMonthe == false &&
-                                            birthDateValid == true) {
-                                          showAlertDialogSaveData(
-                                              context,
-                                              'هل أنت متأكد من حفظ البيانات',
-                                              'Are you sure you want to save data');
-                                        }
-                                      }else{
-                                        showToast("Notifications_Form.notifications_required_fields".tr().toString(),
-                                            context: context,
-                                            animation: StyledToastAnimation.scale,
-                                            fullWidth: true);
-                                      }
-                                    }
+                                  if (errorDay == false &&
+                                      errorMonthe == false &&
+                                      birthDateValid == true) {
+                                    showAlertDialogSaveData(
+                                        context,
+                                        'هل أنت متأكد من حفظ البيانات',
+                                        'Are you sure you want to save data');
                                   }
                                 }
-                              }
-                            }else if(switchValidateSalesLead==false){
-                              if (isMigrate == true) {
-
-                                if (role == 'Subdealer' || role =='DealerAgent') {
-                                  print('iam hera');
-                                  if (duplicateSecondReferenceNumber == false &&
-                                      area != null &&
-                                      street != null &&
-                                      building != null &&
-                                      img64Passport != null &&
-                                      img64Location != null &&
-                                      referenceNumber.text != '' &&
-                                      UserName.text != '' &&
-                                      Password.text != '' &&
-                                      documentExpiryDate.text != ''&&
-                                      mbbMsisdn.text != '' &&
-                                      referenceNumber2.text != '' &&
-                                      FirstName.text != '' &&
-                                      LastName.text != '' &&
-                                      day.text != '' &&
-                                      month.text != '' &&
-                                      year.text != '' &&
-                                      selectedCounrty_key != null) {
-                                    if (int.parse(day.text) >= 1 &&
-                                        int.parse(day.text) <= 31) {
-                                      errorDay = false;
-                                    } else {
-                                      setState(() {
-                                        errorDay = true;
-                                      });
-                                    }
-                                    if (int.parse(month.text) >= 1 &&
-                                        int.parse(month.text) <= 12) {
-                                      errorMonthe = false;
-                                    } else {
-                                      setState(() {
-                                        errorMonthe = true;
-                                      });
-                                    }
-
-                                    if (errorDay == false &&
-                                        errorMonthe == false &&
-                                        birthDateValid == true) {
-                                      showAlertDialogSaveData(
-                                          context,
-                                          'هل أنت متأكد من حفظ البيانات',
-                                          'Are you sure you want to save data');
-                                    }
-                                  }else{
-                                    showToast("Notifications_Form.notifications_required_fields".tr().toString(),
-                                        context: context,
-                                        animation: StyledToastAnimation.scale,
-                                        fullWidth: true);
+                              } else if (freeExtender == false) {
+                                if (duplicateSecondReferenceNumber == false &&
+                                    buildingCode.text != '' &&
+                                    img64Passport != null &&
+                                    referenceNumber.text != '' &&
+                                    UserName.text != '' &&
+                                    Password.text != '' &&
+                                    documentExpiryDate.text != ''&&
+                                    mbbMsisdn.text != '' &&
+                                    optionValue!=null &&
+                                    salesLeadValue.text!=""&&
+                                    referenceNumber2.text != '' &&
+                                    FirstName.text != '' &&
+                                    LastName.text != '' &&
+                                    day.text != '' &&
+                                    month.text != '' &&
+                                    year.text != '' &&
+                                    selectedCounrty_key != null) {
+                                  if (int.parse(day.text) >= 1 &&
+                                      int.parse(day.text) <= 31) {
+                                    errorDay = false;
+                                  } else {
+                                    setState(() {
+                                      errorDay = true;
+                                    });
                                   }
-                                } else if (role != 'Subdealer' && role !='DealerAgent' && role!="ZainTelesales") {
-                                  if (extraMonth == true) {
-                                    if (freeExtender == true) {
-                                      if (duplicateSecondReferenceNumber == false &&
-                                          buildingCode.text != '' &&
-                                          img64Passport != null &&
-                                          referenceNumber.text != '' &&
-                                          UserName.text != '' &&
-                                          Password.text != '' &&
-                                          documentExpiryDate.text != ''&&
-                                          mbbMsisdn.text != '' &&
-                                          referenceNumber2.text != '' &&
-                                          FirstName.text != '' &&
-                                          LastName.text != '' &&
-                                          day.text != '' &&
-                                          month.text != '' &&
-                                          year.text != '' &&
-                                          extra_month != null &&
-                                          free_extender != null &&
-                                          selectedCounrty_key != null) {
-                                        if (int.parse(day.text) >= 1 &&
-                                            int.parse(day.text) <= 31) {
-                                          errorDay = false;
-                                        } else {
-                                          setState(() {
-                                            errorDay = true;
-                                          });
-                                        }
-                                        if (int.parse(month.text) >= 1 &&
-                                            int.parse(month.text) <= 12) {
-                                          errorMonthe = false;
-                                        } else {
-                                          setState(() {
-                                            errorMonthe = true;
-                                          });
-                                        }
-
-                                        if (errorDay == false &&
-                                            errorMonthe == false &&
-                                            birthDateValid == true) {
-                                          showAlertDialogSaveData(
-                                              context,
-                                              'هل أنت متأكد من حفظ البيانات',
-                                              'Are you sure you want to save data');
-                                        }
-                                      }
-                                    } else if (freeExtender == false) {
-                                      if (duplicateSecondReferenceNumber == false &&
-                                          buildingCode.text != '' &&
-                                          img64Passport != null &&
-                                          referenceNumber.text != '' &&
-                                          UserName.text != '' &&
-                                          Password.text != '' &&
-                                          documentExpiryDate.text != ''&&
-                                          mbbMsisdn.text != '' &&
-                                          referenceNumber2.text != '' &&
-                                          FirstName.text != '' &&
-                                          LastName.text != '' &&
-                                          day.text != '' &&
-                                          month.text != '' &&
-                                          year.text != '' &&
-                                          extra_month != null &&
-                                          selectedCounrty_key != null
-                                      ) {
-                                        if (int.parse(day.text) >= 1 &&
-                                            int.parse(day.text) <= 31) {
-                                          errorDay = false;
-                                        } else {
-                                          setState(() {
-                                            errorDay = true;
-                                          });
-                                        }
-                                        if (int.parse(month.text) >= 1 &&
-                                            int.parse(month.text) <= 12) {
-                                          errorMonthe = false;
-                                        } else {
-                                          setState(() {
-                                            errorMonthe = true;
-                                          });
-                                        }
-
-                                        if (errorDay == false &&
-                                            errorMonthe == false &&
-                                            birthDateValid == true) {
-                                          showAlertDialogSaveData(
-                                              context,
-                                              'هل أنت متأكد من حفظ البيانات',
-                                              'Are you sure you want to save data');
-                                        }
-                                      }
-                                    }
-                                  } else if (extraMonth == false) {
-                                    if (freeExtender == true) {
-                                      if (duplicateSecondReferenceNumber == false &&
-                                          buildingCode.text != '' &&
-                                          img64Passport != null &&
-                                          referenceNumber.text != '' &&
-                                          UserName.text != '' &&
-                                          Password.text != '' &&
-                                          documentExpiryDate.text != ''&&
-                                          mbbMsisdn.text != '' &&
-
-                                          referenceNumber2.text != '' &&
-                                          FirstName.text != '' &&
-                                          LastName.text != '' &&
-                                          day.text != '' &&
-                                          month.text != '' &&
-                                          year.text != '' &&
-                                          free_extender != null &&
-                                          selectedCounrty_key != null) {
-                                        if (int.parse(day.text) >= 1 &&
-                                            int.parse(day.text) <= 31) {
-                                          errorDay = false;
-                                        } else {
-                                          setState(() {
-                                            errorDay = true;
-                                          });
-                                        }
-                                        if (int.parse(month.text) >= 1 &&
-                                            int.parse(month.text) <= 12) {
-                                          errorMonthe = false;
-                                        } else {
-                                          setState(() {
-                                            errorMonthe = true;
-                                          });
-                                        }
-
-                                        if (errorDay == false &&
-                                            errorMonthe == false &&
-                                            birthDateValid == true) {
-                                          showAlertDialogSaveData(
-                                              context,
-                                              'هل أنت متأكد من حفظ البيانات',
-                                              'Are you sure you want to save data');
-                                        }
-                                      }else{
-                                        showToast("Notifications_Form.notifications_required_fields".tr().toString(),
-                                            context: context,
-                                            animation: StyledToastAnimation.scale,
-                                            fullWidth: true);
-                                      }
-                                    } else if (freeExtender == false) {
-                                      if (duplicateSecondReferenceNumber == false &&
-                                          buildingCode.text != '' &&
-                                          img64Passport != null &&
-                                          referenceNumber.text != '' &&
-                                          UserName.text != '' &&
-                                          Password.text != '' &&
-                                          documentExpiryDate.text != ''&&
-                                          mbbMsisdn.text != '' &&
-
-                                          referenceNumber2.text != '' &&
-                                          FirstName.text != '' &&
-                                          LastName.text != '' &&
-                                          day.text != '' &&
-                                          month.text != '' &&
-                                          year.text != '' &&
-                                          selectedCounrty_key != null) {
-                                        if (int.parse(day.text) >= 1 &&
-                                            int.parse(day.text) <= 31) {
-                                          errorDay = false;
-                                        } else {
-                                          setState(() {
-                                            errorDay = true;
-                                          });
-                                        }
-                                        if (int.parse(month.text) >= 1 &&
-                                            int.parse(month.text) <= 12) {
-                                          errorMonthe = false;
-                                        } else {
-                                          setState(() {
-                                            errorMonthe = true;
-                                          });
-                                        }
-
-                                        if (errorDay == false &&
-                                            errorMonthe == false &&
-                                            birthDateValid == true) {
-                                          showAlertDialogSaveData(
-                                              context,
-                                              'هل أنت متأكد من حفظ البيانات',
-                                              'Are you sure you want to save data');
-                                        }
-                                      }else{
-                                        showToast("Notifications_Form.notifications_required_fields".tr().toString(),
-                                            context: context,
-                                            animation: StyledToastAnimation.scale,
-                                            fullWidth: true);
-                                      }
-                                    }
+                                  if (int.parse(month.text) >= 1 &&
+                                      int.parse(month.text) <= 12) {
+                                    errorMonthe = false;
+                                  } else {
+                                    setState(() {
+                                      errorMonthe = true;
+                                    });
                                   }
-                                }
-                              }
-                              else if (isMigrate == false) {
 
-                                if (role == 'Subdealer' || role =='DealerAgent') {
-                                  if (duplicateSecondReferenceNumber == false &&
-                                      area != null &&
-                                      street != null &&
-                                      building != null &&
-                                      img64Passport != null &&
-                                      img64Location != null &&
-                                      referenceNumber.text != '' &&
-                                      documentExpiryDate.text != ''&&
-                                      UserName.text != '' &&
-                                      Password.text != '' &&
-
-                                      referenceNumber2.text != '' &&
-                                      FirstName.text != '' &&
-                                      LastName.text != '' &&
-                                      day.text != '' &&
-                                      month.text != '' &&
-                                      year.text != '' &&
-                                      selectedCounrty_key != null) {
-                                    if (int.parse(day.text) >= 1 &&
-                                        int.parse(day.text) <= 31) {
-                                      errorDay = false;
-                                    } else {
-                                      setState(() {
-                                        errorDay = true;
-                                      });
-                                    }
-                                    if (int.parse(month.text) >= 1 &&
-                                        int.parse(month.text) <= 12) {
-                                      errorMonthe = false;
-                                    } else {
-                                      setState(() {
-                                        errorMonthe = true;
-                                      });
-                                    }
-
-                                    if (errorDay == false &&
-                                        errorMonthe == false &&
-                                        birthDateValid == true) {
-                                      showAlertDialogSaveData(
-                                          context,
-                                          'هل أنت متأكد من حفظ البيانات',
-                                          'Are you sure you want to save data');
-                                    }
-                                  }else{
-                                    showToast("Notifications_Form.notifications_required_fields".tr().toString(),
-                                        context: context,
-                                        animation: StyledToastAnimation.scale,
-                                        fullWidth: true);
+                                  if (errorDay == false &&
+                                      errorMonthe == false &&
+                                      birthDateValid == true) {
+                                    showAlertDialogSaveData(
+                                        context,
+                                        'هل أنت متأكد من حفظ البيانات',
+                                        'Are you sure you want to save data');
                                   }
-                                } else if (role != 'Subdealer' &&  role !='DealerAgent'&& role!="ZainTelesales") {
-                                  if (extraMonth == true) {
-                                    if (freeExtender == true) {
-                                      print('here');
-                                      if (duplicateSecondReferenceNumber == false &&
-                                          buildingCode.text != '' &&
-                                          img64Passport != null &&
-                                          referenceNumber.text != '' &&
-                                          UserName.text != '' &&
-                                          Password.text != '' &&
-                                          documentExpiryDate.text != ''&&
-                                          referenceNumber2.text != '' &&
-                                          FirstName.text != '' &&
-                                          LastName.text != '' &&
-                                          day.text != '' &&
-                                          month.text != '' &&
-                                          year.text != '' &&
-                                          extra_month != null &&
-                                          free_extender != null &&
-                                          selectedCounrty_key != null) {
-                                        if (int.parse(day.text) >= 1 &&
-                                            int.parse(day.text) <= 31) {
-                                          errorDay = false;
-                                        } else {
-                                          setState(() {
-                                            errorDay = true;
-                                          });
-                                        }
-                                        if (int.parse(month.text) >= 1 &&
-                                            int.parse(month.text) <= 12) {
-                                          errorMonthe = false;
-                                        } else {
-                                          setState(() {
-                                            errorMonthe = true;
-                                          });
-                                        }
-
-                                        if (errorDay == false &&
-                                            errorMonthe == false &&
-                                            birthDateValid == true) {
-                                          showAlertDialogSaveData(
-                                              context,
-                                              'هل أنت متأكد من حفظ البيانات',
-                                              'Are you sure you want to save data');
-                                        }
-                                      }else{
-                                        showToast("Notifications_Form.notifications_required_fields".tr().toString(),
-                                            context: context,
-                                            animation: StyledToastAnimation.scale,
-                                            fullWidth: true);
-                                      }
-                                    } else if (freeExtender == false) {
-                                      if (duplicateSecondReferenceNumber == false &&
-                                          buildingCode.text != '' &&
-                                          img64Passport != null &&
-                                          referenceNumber.text != '' &&
-                                          UserName.text != '' &&
-                                          Password.text != '' &&
-                                          referenceNumber2.text != '' &&
-                                          documentExpiryDate.text != ''&&
-                                          FirstName.text != '' &&
-                                          LastName.text != '' &&
-                                          day.text != '' &&
-                                          month.text != '' &&
-                                          year.text != '' &&
-                                          extra_month != null &&
-                                          selectedCounrty_key != null) {
-                                        if (int.parse(day.text) >= 1 &&
-                                            int.parse(day.text) <= 31) {
-                                          errorDay = false;
-                                        } else {
-                                          setState(() {
-                                            errorDay = true;
-                                          });
-                                        }
-                                        if (int.parse(month.text) >= 1 &&
-                                            int.parse(month.text) <= 12) {
-                                          errorMonthe = false;
-                                        } else {
-                                          setState(() {
-                                            errorMonthe = true;
-                                          });
-                                        }
-
-                                        if (errorDay == false &&
-                                            errorMonthe == false &&
-                                            birthDateValid == true) {
-                                          showAlertDialogSaveData(
-                                              context,
-                                              'هل أنت متأكد من حفظ البيانات',
-                                              'Are you sure you want to save data');
-                                        }
-                                      }else{
-                                        showToast("Notifications_Form.notifications_required_fields".tr().toString(),
-                                            context: context,
-                                            animation: StyledToastAnimation.scale,
-                                            fullWidth: true);
-                                      }
-                                    }
-                                  } else if (extraMonth == false) {
-                                    if (freeExtender == true) {
-                                      if (duplicateSecondReferenceNumber == false &&
-                                          buildingCode.text != '' &&
-                                          img64Passport != null &&
-                                          referenceNumber.text != '' &&
-                                          UserName.text != '' &&
-                                          Password.text != '' &&
-                                          referenceNumber2.text != '' &&
-                                          documentExpiryDate.text != ''&&
-                                          FirstName.text != '' &&
-                                          LastName.text != '' &&
-                                          day.text != '' &&
-                                          month.text != '' &&
-                                          year.text != '' &&
-                                          free_extender != null &&
-                                          selectedCounrty_key != null) {
-                                        if (int.parse(day.text) >= 1 &&
-                                            int.parse(day.text) <= 31) {
-                                          errorDay = false;
-                                        } else {
-                                          setState(() {
-                                            errorDay = true;
-                                          });
-                                        }
-                                        if (int.parse(month.text) >= 1 &&
-                                            int.parse(month.text) <= 12) {
-                                          errorMonthe = false;
-                                        } else {
-                                          setState(() {
-                                            errorMonthe = true;
-                                          });
-                                        }
-
-                                        if (errorDay == false &&
-                                            errorMonthe == false &&
-                                            birthDateValid == true) {
-                                          showAlertDialogSaveData(
-                                              context,
-                                              'هل أنت متأكد من حفظ البيانات',
-                                              'Are you sure you want to save data');
-                                        }
-                                      }else{
-                                        showToast("Notifications_Form.notifications_required_fields".tr().toString(),
-                                            context: context,
-                                            animation: StyledToastAnimation.scale,
-                                            fullWidth: true);
-                                      }
-                                    } else if (freeExtender == false) {
-                                      if (duplicateSecondReferenceNumber == false &&
-                                          buildingCode.text != '' &&
-                                          img64Passport != null &&
-                                          referenceNumber.text != '' &&
-                                          UserName.text != '' &&
-                                          Password.text != '' &&
-                                          referenceNumber2.text != '' &&
-                                          documentExpiryDate.text != ''&&
-                                          FirstName.text != '' &&
-                                          LastName.text != '' &&
-                                          day.text != '' &&
-                                          month.text != '' &&
-                                          year.text != '' &&
-                                          selectedCounrty_key != null) {
-                                        if (int.parse(day.text) >= 1 &&
-                                            int.parse(day.text) <= 31) {
-                                          errorDay = false;
-                                        } else {
-                                          setState(() {
-                                            errorDay = true;
-                                          });
-                                        }
-                                        if (int.parse(month.text) >= 1 &&
-                                            int.parse(month.text) <= 12) {
-                                          errorMonthe = false;
-                                        } else {
-                                          setState(() {
-                                            errorMonthe = true;
-                                          });
-                                        }
-
-                                        if (errorDay == false &&
-                                            errorMonthe == false &&
-                                            birthDateValid == true) {
-                                          showAlertDialogSaveData(
-                                              context,
-                                              'هل أنت متأكد من حفظ البيانات',
-                                              'Are you sure you want to save data');
-                                        }
-                                      }else{
-                                        showToast("Notifications_Form.notifications_required_fields".tr().toString(),
-                                            context: context,
-                                            animation: StyledToastAnimation.scale,
-                                            fullWidth: true);
-                                      }
-                                    }
-                                  }
+                                }else{
+                                  showToast("Notifications_Form.notifications_required_fields".tr().toString(),
+                                      context: context,
+                                      animation: StyledToastAnimation.scale,
+                                      fullWidth: true);
                                 }
                               }
                             }
+                          }
+                        }
+                        else if (isMigrate == false) {
+                          if( role=="ZainTelesales"){
+                            if (duplicateSecondReferenceNumber == false &&
+                                area != null &&
+                                street != null &&
+                                building != null &&
+                                img64Passport != null &&
+                                img64Location != null &&
+                                referenceNumber.text != '' &&
+                                optionValue!=null &&
+                                salesLeadValue.text!=""&&
+                                UserName.text != '' &&
+                                Password.text != '' &&
+                                documentExpiryDate.text != ''&&
+                                referenceNumber2.text != '' &&
+                                FirstName.text != '' &&
+                                LastName.text != '' &&
+                                day.text != '' &&
+                                month.text != '' &&
+                                year.text != ''&&
+                                selectedBEHALF_key !=null &&
+                                selectedReseller_key !=null &&
+                                selectedCounrty_key != null) {
+                              if (int.parse(day.text) >= 1 &&
+                                  int.parse(day.text) <= 31) {
+                                errorDay = false;
+                              } else {
+                                setState(() {
+                                  errorDay = true;
+                                });
+                              }
+                              if (int.parse(month.text) >= 1 &&
+                                  int.parse(month.text) <= 12) {
+                                errorMonthe = false;
+                              } else {
+                                setState(() {
+                                  errorMonthe = true;
+                                });
+                              }
 
-                          },
+                              if (errorDay == false &&
+                                  errorMonthe == false &&
+                                  birthDateValid == true) {
+                                showAlertDialogSaveData(
+                                    context,
+                                    'هل أنت متأكد من حفظ البيانات',
+                                    'Are you sure you want to save data');
+                              }
+                            }else{
+                              showToast("Notifications_Form.notifications_required_fields".tr().toString(),
+                                  context: context,
+                                  animation: StyledToastAnimation.scale,
+                                  fullWidth: true);
+                            }
+
+                          }
+                          if (role == 'Subdealer' || role =='DealerAgent') {
+                            if (duplicateSecondReferenceNumber == false &&
+                                area != null &&
+                                street != null &&
+                                building != null &&
+                                img64Passport != null &&
+                                img64Location != null &&
+                                referenceNumber.text != '' &&
+                                optionValue!=null &&
+                                salesLeadValue.text!=""&&
+                                UserName.text != '' &&
+                                Password.text != '' &&
+                                documentExpiryDate.text != ''&&
+                                referenceNumber2.text != '' &&
+                                FirstName.text != '' &&
+                                LastName.text != '' &&
+                                day.text != '' &&
+                                month.text != '' &&
+                                year.text != '' &&
+                                selectedCounrty_key != null) {
+                              if (int.parse(day.text) >= 1 &&
+                                  int.parse(day.text) <= 31) {
+                                errorDay = false;
+                              } else {
+                                setState(() {
+                                  errorDay = true;
+                                });
+                              }
+                              if (int.parse(month.text) >= 1 &&
+                                  int.parse(month.text) <= 12) {
+                                errorMonthe = false;
+                              } else {
+                                setState(() {
+                                  errorMonthe = true;
+                                });
+                              }
+
+                              if (errorDay == false &&
+                                  errorMonthe == false &&
+                                  birthDateValid == true) {
+                                showAlertDialogSaveData(
+                                    context,
+                                    'هل أنت متأكد من حفظ البيانات',
+                                    'Are you sure you want to save data');
+                              }
+                            }else{
+                              showToast("Notifications_Form.notifications_required_fields".tr().toString(),
+                                  context: context,
+                                  animation: StyledToastAnimation.scale,
+                                  fullWidth: true);
+                            }
+                          } else if (role != 'Subdealer' && role !='DealerAgent' && role!="ZainTelesales") {
+                            if (extraMonth == true) {
+                              if (freeExtender == true) {
+                                if (duplicateSecondReferenceNumber == false &&
+                                    buildingCode.text != '' &&
+                                    img64Passport != null &&
+                                    referenceNumber.text != '' &&
+                                    UserName.text != '' &&
+                                    Password.text != '' &&
+                                    documentExpiryDate.text != ''&&
+                                    optionValue!=null &&
+                                    salesLeadValue.text!=""&&
+                                    referenceNumber2.text != '' &&
+                                    FirstName.text != '' &&
+                                    LastName.text != '' &&
+                                    day.text != '' &&
+                                    month.text != '' &&
+                                    year.text != '' &&
+                                    extra_month != null &&
+                                    free_extender != null &&
+                                    selectedCounrty_key != null) {
+                                  if (int.parse(day.text) >= 1 &&
+                                      int.parse(day.text) <= 31) {
+                                    errorDay = false;
+                                  } else {
+                                    setState(() {
+                                      errorDay = true;
+                                    });
+                                  }
+                                  if (int.parse(month.text) >= 1 &&
+                                      int.parse(month.text) <= 12) {
+                                    errorMonthe = false;
+                                  } else {
+                                    setState(() {
+                                      errorMonthe = true;
+                                    });
+                                  }
+
+                                  if (errorDay == false &&
+                                      errorMonthe == false &&
+                                      birthDateValid == true) {
+                                    showAlertDialogSaveData(
+                                        context,
+                                        'هل أنت متأكد من حفظ البيانات',
+                                        'Are you sure you want to save data');
+                                  }
+                                }else{
+                                  showToast("Notifications_Form.notifications_required_fields".tr().toString(),
+                                      context: context,
+                                      animation: StyledToastAnimation.scale,
+                                      fullWidth: true);
+                                }
+                              } else if (freeExtender == false) {
+                                if (duplicateSecondReferenceNumber == false &&
+                                    buildingCode.text != '' &&
+                                    img64Passport != null &&
+                                    referenceNumber.text != '' &&
+                                    UserName.text != '' &&
+                                    Password.text != '' &&
+                                    documentExpiryDate.text != ''&&
+                                    referenceNumber2.text != '' &&
+                                    optionValue!=null &&
+                                    salesLeadValue.text!=""&&
+                                    FirstName.text != '' &&
+                                    LastName.text != '' &&
+                                    day.text != '' &&
+                                    month.text != '' &&
+                                    year.text != '' &&
+                                    extra_month != null &&
+                                    selectedCounrty_key != null) {
+                                  if (int.parse(day.text) >= 1 &&
+                                      int.parse(day.text) <= 31) {
+                                    errorDay = false;
+                                  } else {
+                                    setState(() {
+                                      errorDay = true;
+                                    });
+                                  }
+                                  if (int.parse(month.text) >= 1 &&
+                                      int.parse(month.text) <= 12) {
+                                    errorMonthe = false;
+                                  } else {
+                                    setState(() {
+                                      errorMonthe = true;
+                                    });
+                                  }
+
+                                  if (errorDay == false &&
+                                      errorMonthe == false &&
+                                      birthDateValid == true) {
+                                    showAlertDialogSaveData(
+                                        context,
+                                        'هل أنت متأكد من حفظ البيانات',
+                                        'Are you sure you want to save data');
+                                  }
+                                }else{
+                                  showToast("Notifications_Form.notifications_required_fields".tr().toString(),
+                                      context: context,
+                                      animation: StyledToastAnimation.scale,
+                                      fullWidth: true);
+                                }
+                              }
+                            } else if (extraMonth == false) {
+                              if (freeExtender == true) {
+                                if (duplicateSecondReferenceNumber == false &&
+                                    buildingCode.text != '' &&
+                                    img64Passport != null &&
+                                    referenceNumber.text != '' &&
+                                    UserName.text != '' &&
+                                    Password.text != '' &&
+                                    documentExpiryDate.text != ''&&
+                                    referenceNumber2.text != '' &&
+                                    optionValue!=null &&
+                                    salesLeadValue.text!=""&&
+                                    FirstName.text != '' &&
+                                    LastName.text != '' &&
+                                    day.text != '' &&
+                                    month.text != '' &&
+                                    year.text != '' &&
+                                    free_extender != null &&
+                                    selectedCounrty_key != null) {
+                                  if (int.parse(day.text) >= 1 &&
+                                      int.parse(day.text) <= 31) {
+                                    errorDay = false;
+                                  } else {
+                                    setState(() {
+                                      errorDay = true;
+                                    });
+                                  }
+                                  if (int.parse(month.text) >= 1 &&
+                                      int.parse(month.text) <= 12) {
+                                    errorMonthe = false;
+                                  } else {
+                                    setState(() {
+                                      errorMonthe = true;
+                                    });
+                                  }
+
+                                  if (errorDay == false &&
+                                      errorMonthe == false &&
+                                      birthDateValid == true) {
+                                    showAlertDialogSaveData(
+                                        context,
+                                        'هل أنت متأكد من حفظ البيانات',
+                                        'Are you sure you want to save data');
+                                  }
+                                }else{
+                                  showToast("Notifications_Form.notifications_required_fields".tr().toString(),
+                                      context: context,
+                                      animation: StyledToastAnimation.scale,
+                                      fullWidth: true);
+                                }
+                              } else if (freeExtender == false) {
+                                if (duplicateSecondReferenceNumber == false &&
+                                    buildingCode.text != '' &&
+                                    img64Passport != null &&
+                                    referenceNumber.text != '' &&
+                                    UserName.text != '' &&
+                                    Password.text != '' &&
+                                    documentExpiryDate.text != ''&&
+                                    referenceNumber2.text != '' &&
+                                    optionValue!=null &&
+                                    salesLeadValue.text!=""&&
+                                    FirstName.text != '' &&
+                                    LastName.text != '' &&
+                                    day.text != '' &&
+                                    month.text != '' &&
+                                    year.text != '' &&
+                                    selectedCounrty_key != null) {
+                                  if (int.parse(day.text) >= 1 &&
+                                      int.parse(day.text) <= 31) {
+                                    errorDay = false;
+                                  } else {
+                                    setState(() {
+                                      errorDay = true;
+                                    });
+                                  }
+                                  if (int.parse(month.text) >= 1 &&
+                                      int.parse(month.text) <= 12) {
+                                    errorMonthe = false;
+                                  } else {
+                                    setState(() {
+                                      errorMonthe = true;
+                                    });
+                                  }
+
+                                  if (errorDay == false &&
+                                      errorMonthe == false &&
+                                      birthDateValid == true) {
+                                    showAlertDialogSaveData(
+                                        context,
+                                        'هل أنت متأكد من حفظ البيانات',
+                                        'Are you sure you want to save data');
+                                  }
+                                }else{
+                                  showToast("Notifications_Form.notifications_required_fields".tr().toString(),
+                                      context: context,
+                                      animation: StyledToastAnimation.scale,
+                                      fullWidth: true);
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }else if(switchValidateSalesLead==false){
+                        if (isMigrate == true) {
+
+                          if (role == 'Subdealer' || role =='DealerAgent') {
+                            print('iam hera');
+                            if (duplicateSecondReferenceNumber == false &&
+                                area != null &&
+                                street != null &&
+                                building != null &&
+                                img64Passport != null &&
+                                img64Location != null &&
+                                referenceNumber.text != '' &&
+                                UserName.text != '' &&
+                                Password.text != '' &&
+                                documentExpiryDate.text != ''&&
+                                mbbMsisdn.text != '' &&
+                                referenceNumber2.text != '' &&
+                                FirstName.text != '' &&
+                                LastName.text != '' &&
+                                day.text != '' &&
+                                month.text != '' &&
+                                year.text != '' &&
+                                selectedCounrty_key != null) {
+                              if (int.parse(day.text) >= 1 &&
+                                  int.parse(day.text) <= 31) {
+                                errorDay = false;
+                              } else {
+                                setState(() {
+                                  errorDay = true;
+                                });
+                              }
+                              if (int.parse(month.text) >= 1 &&
+                                  int.parse(month.text) <= 12) {
+                                errorMonthe = false;
+                              } else {
+                                setState(() {
+                                  errorMonthe = true;
+                                });
+                              }
+
+                              if (errorDay == false &&
+                                  errorMonthe == false &&
+                                  birthDateValid == true) {
+                                showAlertDialogSaveData(
+                                    context,
+                                    'هل أنت متأكد من حفظ البيانات',
+                                    'Are you sure you want to save data');
+                              }
+                            }else{
+                              showToast("Notifications_Form.notifications_required_fields".tr().toString(),
+                                  context: context,
+                                  animation: StyledToastAnimation.scale,
+                                  fullWidth: true);
+                            }
+                          } else if (role != 'Subdealer' && role !='DealerAgent' && role!="ZainTelesales") {
+                            if (extraMonth == true) {
+                              if (freeExtender == true) {
+                                if (duplicateSecondReferenceNumber == false &&
+                                    buildingCode.text != '' &&
+                                    img64Passport != null &&
+                                    referenceNumber.text != '' &&
+                                    UserName.text != '' &&
+                                    Password.text != '' &&
+                                    documentExpiryDate.text != ''&&
+                                    mbbMsisdn.text != '' &&
+                                    referenceNumber2.text != '' &&
+                                    FirstName.text != '' &&
+                                    LastName.text != '' &&
+                                    day.text != '' &&
+                                    month.text != '' &&
+                                    year.text != '' &&
+                                    extra_month != null &&
+                                    free_extender != null &&
+                                    selectedCounrty_key != null) {
+                                  if (int.parse(day.text) >= 1 &&
+                                      int.parse(day.text) <= 31) {
+                                    errorDay = false;
+                                  } else {
+                                    setState(() {
+                                      errorDay = true;
+                                    });
+                                  }
+                                  if (int.parse(month.text) >= 1 &&
+                                      int.parse(month.text) <= 12) {
+                                    errorMonthe = false;
+                                  } else {
+                                    setState(() {
+                                      errorMonthe = true;
+                                    });
+                                  }
+
+                                  if (errorDay == false &&
+                                      errorMonthe == false &&
+                                      birthDateValid == true) {
+                                    showAlertDialogSaveData(
+                                        context,
+                                        'هل أنت متأكد من حفظ البيانات',
+                                        'Are you sure you want to save data');
+                                  }
+                                }
+                              } else if (freeExtender == false) {
+                                if (duplicateSecondReferenceNumber == false &&
+                                    buildingCode.text != '' &&
+                                    img64Passport != null &&
+                                    referenceNumber.text != '' &&
+                                    UserName.text != '' &&
+                                    Password.text != '' &&
+                                    documentExpiryDate.text != ''&&
+                                    mbbMsisdn.text != '' &&
+                                    referenceNumber2.text != '' &&
+                                    FirstName.text != '' &&
+                                    LastName.text != '' &&
+                                    day.text != '' &&
+                                    month.text != '' &&
+                                    year.text != '' &&
+                                    extra_month != null &&
+                                    selectedCounrty_key != null
+                                ) {
+                                  if (int.parse(day.text) >= 1 &&
+                                      int.parse(day.text) <= 31) {
+                                    errorDay = false;
+                                  } else {
+                                    setState(() {
+                                      errorDay = true;
+                                    });
+                                  }
+                                  if (int.parse(month.text) >= 1 &&
+                                      int.parse(month.text) <= 12) {
+                                    errorMonthe = false;
+                                  } else {
+                                    setState(() {
+                                      errorMonthe = true;
+                                    });
+                                  }
+
+                                  if (errorDay == false &&
+                                      errorMonthe == false &&
+                                      birthDateValid == true) {
+                                    showAlertDialogSaveData(
+                                        context,
+                                        'هل أنت متأكد من حفظ البيانات',
+                                        'Are you sure you want to save data');
+                                  }
+                                }
+                              }
+                            } else if (extraMonth == false) {
+                              if (freeExtender == true) {
+                                if (duplicateSecondReferenceNumber == false &&
+                                    buildingCode.text != '' &&
+                                    img64Passport != null &&
+                                    referenceNumber.text != '' &&
+                                    UserName.text != '' &&
+                                    Password.text != '' &&
+                                    documentExpiryDate.text != ''&&
+                                    mbbMsisdn.text != '' &&
+
+                                    referenceNumber2.text != '' &&
+                                    FirstName.text != '' &&
+                                    LastName.text != '' &&
+                                    day.text != '' &&
+                                    month.text != '' &&
+                                    year.text != '' &&
+                                    free_extender != null &&
+                                    selectedCounrty_key != null) {
+                                  if (int.parse(day.text) >= 1 &&
+                                      int.parse(day.text) <= 31) {
+                                    errorDay = false;
+                                  } else {
+                                    setState(() {
+                                      errorDay = true;
+                                    });
+                                  }
+                                  if (int.parse(month.text) >= 1 &&
+                                      int.parse(month.text) <= 12) {
+                                    errorMonthe = false;
+                                  } else {
+                                    setState(() {
+                                      errorMonthe = true;
+                                    });
+                                  }
+
+                                  if (errorDay == false &&
+                                      errorMonthe == false &&
+                                      birthDateValid == true) {
+                                    showAlertDialogSaveData(
+                                        context,
+                                        'هل أنت متأكد من حفظ البيانات',
+                                        'Are you sure you want to save data');
+                                  }
+                                }else{
+                                  showToast("Notifications_Form.notifications_required_fields".tr().toString(),
+                                      context: context,
+                                      animation: StyledToastAnimation.scale,
+                                      fullWidth: true);
+                                }
+                              } else if (freeExtender == false) {
+                                if (duplicateSecondReferenceNumber == false &&
+                                    buildingCode.text != '' &&
+                                    img64Passport != null &&
+                                    referenceNumber.text != '' &&
+                                    UserName.text != '' &&
+                                    Password.text != '' &&
+                                    documentExpiryDate.text != ''&&
+                                    mbbMsisdn.text != '' &&
+
+                                    referenceNumber2.text != '' &&
+                                    FirstName.text != '' &&
+                                    LastName.text != '' &&
+                                    day.text != '' &&
+                                    month.text != '' &&
+                                    year.text != '' &&
+                                    selectedCounrty_key != null) {
+                                  if (int.parse(day.text) >= 1 &&
+                                      int.parse(day.text) <= 31) {
+                                    errorDay = false;
+                                  } else {
+                                    setState(() {
+                                      errorDay = true;
+                                    });
+                                  }
+                                  if (int.parse(month.text) >= 1 &&
+                                      int.parse(month.text) <= 12) {
+                                    errorMonthe = false;
+                                  } else {
+                                    setState(() {
+                                      errorMonthe = true;
+                                    });
+                                  }
+
+                                  if (errorDay == false &&
+                                      errorMonthe == false &&
+                                      birthDateValid == true) {
+                                    showAlertDialogSaveData(
+                                        context,
+                                        'هل أنت متأكد من حفظ البيانات',
+                                        'Are you sure you want to save data');
+                                  }
+                                }else{
+                                  showToast("Notifications_Form.notifications_required_fields".tr().toString(),
+                                      context: context,
+                                      animation: StyledToastAnimation.scale,
+                                      fullWidth: true);
+                                }
+                              }
+                            }
+                          }
+                        }
+                        else if (isMigrate == false) {
+
+                          if (role == 'Subdealer' || role =='DealerAgent') {
+                            if (duplicateSecondReferenceNumber == false &&
+                                area != null &&
+                                street != null &&
+                                building != null &&
+                                img64Passport != null &&
+                                img64Location != null &&
+                                referenceNumber.text != '' &&
+                                documentExpiryDate.text != ''&&
+                                UserName.text != '' &&
+                                Password.text != '' &&
+
+                                referenceNumber2.text != '' &&
+                                FirstName.text != '' &&
+                                LastName.text != '' &&
+                                day.text != '' &&
+                                month.text != '' &&
+                                year.text != '' &&
+                                selectedCounrty_key != null) {
+                              if (int.parse(day.text) >= 1 &&
+                                  int.parse(day.text) <= 31) {
+                                errorDay = false;
+                              } else {
+                                setState(() {
+                                  errorDay = true;
+                                });
+                              }
+                              if (int.parse(month.text) >= 1 &&
+                                  int.parse(month.text) <= 12) {
+                                errorMonthe = false;
+                              } else {
+                                setState(() {
+                                  errorMonthe = true;
+                                });
+                              }
+
+                              if (errorDay == false &&
+                                  errorMonthe == false &&
+                                  birthDateValid == true) {
+                                // showAlertDialogSaveData(
+                                //     context,
+                                //     'هل أنت متأكد من حفظ البيانات',
+                                //     'Are you sure you want to save data');
+                                preSubmitValidation_API();
+
+                              }
+                            }else{
+                              showToast("Notifications_Form.notifications_required_fields".tr().toString(),
+                                  context: context,
+                                  animation: StyledToastAnimation.scale,
+                                  fullWidth: true);
+                            }
+                          } else if (role != 'Subdealer' &&  role !='DealerAgent'&& role!="ZainTelesales") {
+                            if (extraMonth == true) {
+                              if (freeExtender == true) {
+                                print('here');
+                                if (duplicateSecondReferenceNumber == false &&
+                                    buildingCode.text != '' &&
+                                    img64Passport != null &&
+                                    referenceNumber.text != '' &&
+                                    UserName.text != '' &&
+                                    Password.text != '' &&
+                                    documentExpiryDate.text != ''&&
+                                    referenceNumber2.text != '' &&
+                                    FirstName.text != '' &&
+                                    LastName.text != '' &&
+                                    day.text != '' &&
+                                    month.text != '' &&
+                                    year.text != '' &&
+                                    extra_month != null &&
+                                    free_extender != null &&
+                                    selectedCounrty_key != null) {
+                                  if (int.parse(day.text) >= 1 &&
+                                      int.parse(day.text) <= 31) {
+                                    errorDay = false;
+                                  } else {
+                                    setState(() {
+                                      errorDay = true;
+                                    });
+                                  }
+                                  if (int.parse(month.text) >= 1 &&
+                                      int.parse(month.text) <= 12) {
+                                    errorMonthe = false;
+                                  } else {
+                                    setState(() {
+                                      errorMonthe = true;
+                                    });
+                                  }
+
+                                  if (errorDay == false &&
+                                      errorMonthe == false &&
+                                      birthDateValid == true) {
+                                    showAlertDialogSaveData(
+                                        context,
+                                        'هل أنت متأكد من حفظ البيانات',
+                                        'Are you sure you want to save data');
+                                  }
+                                }else{
+                                  showToast("Notifications_Form.notifications_required_fields".tr().toString(),
+                                      context: context,
+                                      animation: StyledToastAnimation.scale,
+                                      fullWidth: true);
+                                }
+                              } else if (freeExtender == false) {
+                                if (duplicateSecondReferenceNumber == false &&
+                                    buildingCode.text != '' &&
+                                    img64Passport != null &&
+                                    referenceNumber.text != '' &&
+                                    UserName.text != '' &&
+                                    Password.text != '' &&
+                                    referenceNumber2.text != '' &&
+                                    documentExpiryDate.text != ''&&
+                                    FirstName.text != '' &&
+                                    LastName.text != '' &&
+                                    day.text != '' &&
+                                    month.text != '' &&
+                                    year.text != '' &&
+                                    extra_month != null &&
+                                    selectedCounrty_key != null) {
+                                  if (int.parse(day.text) >= 1 &&
+                                      int.parse(day.text) <= 31) {
+                                    errorDay = false;
+                                  } else {
+                                    setState(() {
+                                      errorDay = true;
+                                    });
+                                  }
+                                  if (int.parse(month.text) >= 1 &&
+                                      int.parse(month.text) <= 12) {
+                                    errorMonthe = false;
+                                  } else {
+                                    setState(() {
+                                      errorMonthe = true;
+                                    });
+                                  }
+
+                                  if (errorDay == false &&
+                                      errorMonthe == false &&
+                                      birthDateValid == true) {
+                                    // showAlertDialogSaveData(
+                                    //     context,
+                                    //     'هل أنت متأكد من حفظ البيانات',
+                                    //     'Are you sure you want to save data');
+                                    preSubmitValidation_API();
+
+                                  }
+                                }else{
+                                  showToast("Notifications_Form.notifications_required_fields".tr().toString(),
+                                      context: context,
+                                      animation: StyledToastAnimation.scale,
+                                      fullWidth: true);
+                                }
+                              }
+                            } else if (extraMonth == false) {
+                              if (freeExtender == true) {
+                                if (duplicateSecondReferenceNumber == false &&
+                                    buildingCode.text != '' &&
+                                    img64Passport != null &&
+                                    referenceNumber.text != '' &&
+                                    UserName.text != '' &&
+                                    Password.text != '' &&
+                                    referenceNumber2.text != '' &&
+                                    documentExpiryDate.text != ''&&
+                                    FirstName.text != '' &&
+                                    LastName.text != '' &&
+                                    day.text != '' &&
+                                    month.text != '' &&
+                                    year.text != '' &&
+                                    free_extender != null &&
+                                    selectedCounrty_key != null) {
+                                  if (int.parse(day.text) >= 1 &&
+                                      int.parse(day.text) <= 31) {
+                                    errorDay = false;
+                                  } else {
+                                    setState(() {
+                                      errorDay = true;
+                                    });
+                                  }
+                                  if (int.parse(month.text) >= 1 &&
+                                      int.parse(month.text) <= 12) {
+                                    errorMonthe = false;
+                                  } else {
+                                    setState(() {
+                                      errorMonthe = true;
+                                    });
+                                  }
+
+                                  if (errorDay == false &&
+                                      errorMonthe == false &&
+                                      birthDateValid == true) {
+                                    preSubmitValidation_API();
+                                    // showAlertDialogSaveData(
+                                    //     context,
+                                    //     'هل أنت متأكد من حفظ البيانات',
+                                    //     'Are you sure you want to save data');
+                                  }
+                                }else{
+                                  showToast("Notifications_Form.notifications_required_fields".tr().toString(),
+                                      context: context,
+                                      animation: StyledToastAnimation.scale,
+                                      fullWidth: true);
+                                }
+                              } else if (freeExtender == false) {
+                                if (duplicateSecondReferenceNumber == false &&
+                                    buildingCode.text != '' &&
+
+                                    referenceNumber.text != '' &&
+                                    UserName.text != '' &&
+                                    Password.text != '' &&
+                                    referenceNumber2.text != '' &&
+                                    documentExpiryDate.text != ''&&
+                                    FirstName.text != '' &&
+                                    LastName.text != '' &&
+                                    day.text != '' &&
+                                    month.text != '' &&
+                                    year.text != '' &&
+                                    selectedCounrty_key != null) {
+                                  if (int.parse(day.text) >= 1 &&
+                                      int.parse(day.text) <= 31) {
+                                    errorDay = false;
+                                  } else {
+                                    setState(() {
+                                      errorDay = true;
+                                    });
+                                  }
+                                  if (int.parse(month.text) >= 1 &&
+                                      int.parse(month.text) <= 12) {
+                                    errorMonthe = false;
+                                  } else {
+                                    setState(() {
+                                      errorMonthe = true;
+                                    });
+                                  }
+
+                                  if (errorDay == false &&
+                                      errorMonthe == false &&
+                                      birthDateValid == true) {
+                                    preSubmitValidation_API();
+                                    // showAlertDialogSaveData(
+                                    //     context,
+                                    //     'هل أنت متأكد من حفظ البيانات',
+                                    //     'Are you sure you want to save data');
+                                  }
+                                }else{
+                                  showToast("Notifications_Form.notifications_required_fields".tr().toString(),
+                                      context: context,
+                                      animation: StyledToastAnimation.scale,
+                                      fullWidth: true);
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+
+                    },
                     style: TextButton.styleFrom(
                       backgroundColor: Color(0xFF4f2565),
                       shape: const BeveledRectangleBorder(
@@ -7495,6 +7731,3 @@ class _NonJordainianCustomerInformationState
     );
   }
 }
-
-//////
-/**/

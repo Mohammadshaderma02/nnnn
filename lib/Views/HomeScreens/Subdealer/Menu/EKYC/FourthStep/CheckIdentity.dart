@@ -694,34 +694,7 @@ class _checkIdentityState extends State<checkIdentity> {
   }
 
 
-  // Your existing validation methods remain the same
-  // Enhanced validation methods with better detection
-  /*bool _validateFrontSide(String text) {
-    print("Validating front side text: $text");
 
-    // Front side indicators (adjust based on your ID format)
-    bool hasArabicText = RegExp(r'(الهوية|الاردنية|Jordan|المملكة|الهاشمية)', caseSensitive: false).hasMatch(text);
-    bool hasName = _extractAndStore(text, RegExp(r'[\u0600-\u06FF\s]+'), 'nameArabic') ||
-        _extractAndStore(text, RegExp(r'[A-Z][a-z]+\s+[A-Z][a-z]+'), 'nameEnglish');
-    bool hasDateOfBirth = _extractAndStore(text, RegExp(r'\d{2}/\d{2}/\d{4}'), 'dateOfBirth');
-
-    // Strong indicators this is NOT the back side
-    bool hasNoMRZ = !text.contains('<<<') && !text.contains('JOR');
-    bool hasNoLongNumbers = !RegExp(r'\d{10}').hasMatch(text);
-
-    bool hasGender = text.toLowerCase().contains('male') ||
-        text.toLowerCase().contains('female') ||
-        text.contains('M') || text.contains('F') ||
-        text.contains('ذكر') || text.contains('انثى');
-
-    int positiveMatches = [hasArabicText, hasName, hasDateOfBirth, hasGender].where((match) => match).length;
-    int negativeMatches = [hasNoMRZ, hasNoLongNumbers].where((match) => match).length;
-
-    print("Front side - Positive: $positiveMatches, Negative: $negativeMatches");
-
-    // Need at least 2 positive indicators AND both negative indicators
-    return positiveMatches >= 2 && negativeMatches >= 1;
-  }*/
   bool _validateFrontSide(String text) {
     print("Validating front side text: $text");
 
@@ -794,27 +767,7 @@ class _checkIdentityState extends State<checkIdentity> {
     return isValidFront;
   }
 
-  /*bool _validateBackSide(String text) {
-    print("Validating back side text: $text");
 
-    // Back side indicators
-    bool hasNationalId = _extractAndStore(text, RegExp(r'\d{10}'), 'nationalId');
-    bool hasMrzCode = text.contains('JOR') && text.contains('<<<');
-    bool hasExpiryDate = _extractAndStore(text, RegExp(r'(Expiry|انتهاء).{0,10}\d{2}/\d{2}/\d{4}'), 'expiry');
-    bool hasIdNumber = (text.contains('ID') && text.contains('No')) ||
-        (text.contains('رقم') && text.contains('الهوية'));
-
-    // Strong indicators this is NOT the front side
-    bool hasNoPhoto = !text.toLowerCase().contains('photo') && !text.contains('صورة');
-
-    int positiveMatches = [hasNationalId, hasMrzCode, hasExpiryDate, hasIdNumber].where((match) => match).length;
-
-    print("Back side - Positive matches: $positiveMatches");
-
-    // Need at least 2 positive indicators for back side
-    return positiveMatches >= 2;
-  }*/
-  // Also update the back side validation to be more precise
   bool _validateBackSide(String text) {
     print("Validating back side text: $text");
 
@@ -989,18 +942,6 @@ class _checkIdentityState extends State<checkIdentity> {
     _countdownTimer?.cancel();
     _stepTimeout?.cancel();
 
-    // Navigate to results
-  /*  Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => IDResultScreen(
-          idInfo: Map<String, String>.from(_idInfo),
-          imagePaths: List<String>.from(_capturedPaths),
-        ),
-      ),
-    ).then((_) {
-      // When user returns from result screen, restart scanning
-      _restartScanning();
-    });*/
   }
 
   // Add a manual restart button to your UI

@@ -45,8 +45,11 @@ import 'package:photo_view/photo_view.dart';
 import 'dart:io' as Io;
 import 'dart:io';
 import 'package:image_picker_ios/image_picker_ios.dart';
+import 'package:sales_app/Views/HomeScreens/Subdealer/Menu/EKYC/GlobalVariables/global_variables.dart';
+import 'package:camera/camera.dart';
 import '../../../../Corporate/Multi_Use_Components/RequiredField.dart';
 import 'GSM_contract_details.dart';
+import '../PostpaidIdentificationSelfRecording.dart';
 
 class NonJordainianCustomerInformation extends StatefulWidget {
   var role;
@@ -235,6 +238,7 @@ class _NonJordainianCustomerInformationState
   var Old_price;
   var General_price;
   bool claim = false;
+  bool isDataFromEkyc = false; // ✅ Track if data came from eKYC passport processing
 
   /////////////////////////////////New 20/9/2023/////////////////////////////////////////////////////////////////////////////////////////
   bool reseller = false;
@@ -297,6 +301,67 @@ class _NonJordainianCustomerInformationState
         BlocProvider.of<PostpaidGenerateContractBloc>(context);
     PassportNumber.text = passportNumber;
     MSISDN.text = msisdn;
+
+    // ✅ Check if data is available from eKYC passport processing
+    if (globalVars.fullNameEn != null && globalVars.fullNameEn.isNotEmpty) {
+      setState(() {
+        isDataFromEkyc = true;
+      });
+      
+      // ✅ Parse full name and split into components
+      List<String> nameParts = globalVars.fullNameEn.trim().split(' ');
+      
+      if (nameParts.length >= 4) {
+        // Full name with at least 4 parts: First Second Third Last
+        FirstName.text = nameParts[0];
+        SecondName.text = nameParts[1];
+        ThirdName.text = nameParts[2];
+        LastName.text = nameParts.sublist(3).join(' '); // Rest goes to last name
+      } else if (nameParts.length == 3) {
+        // 3 parts: First Second Last
+        FirstName.text = nameParts[0];
+        SecondName.text = nameParts[1];
+        LastName.text = nameParts[2];
+      } else if (nameParts.length == 2) {
+        // 2 parts: First Last
+        FirstName.text = nameParts[0];
+        LastName.text = nameParts[1];
+      } else if (nameParts.length == 1) {
+        // Only 1 part
+        FirstName.text = nameParts[0];
+      }
+      
+      // ✅ Parse and populate birthdate (format: YYYY-MM-DD)
+      if (globalVars.birthdate != null && globalVars.birthdate.isNotEmpty) {
+        try {
+          List<String> dateParts = globalVars.birthdate.split('-');
+          if (dateParts.length == 3) {
+            year.text = dateParts[0]; // YYYY
+            month.text = dateParts[1]; // MM
+            day.text = dateParts[2]; // DD
+          }
+        } catch (e) {
+          print('❌ Error parsing birthdate: $e');
+        }
+      }
+      
+      // ✅ Populate document expiry date (format: YYYY-MM-DD to DD/MM/YYYY)
+      if (globalVars.expirayDate != null && globalVars.expirayDate.isNotEmpty) {
+        try {
+          List<String> dateParts = globalVars.expirayDate.split('-');
+          if (dateParts.length == 3) {
+            documentExpiryDate.text = '${dateParts[2]}/${dateParts[1]}/${dateParts[0]}';
+          }
+        } catch (e) {
+          print('❌ Error parsing expiry date: $e');
+        }
+      }
+      
+      print('✅ Populated fields from eKYC data');
+      print('Name: ${FirstName.text} ${SecondName.text} ${ThirdName.text} ${LastName.text}');
+      print('Birthdate: ${day.text}/${month.text}/${year.text}');
+      print('Expiry Date: ${documentExpiryDate.text}');
+    }
 
     print('hello');
     print(
@@ -934,6 +999,128 @@ class _NonJordainianCustomerInformationState
       return Container();
     }
   });
+
+  /*****************************************************************************************************/
+  // ✅ Pre-submit validation - calls API to validate before proceeding to liveness
+  preSubmitValidation_API() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    Map test = {
+      "MarketType": this.marketType,
+      "IsJordanian": false, // Non-Jordanian
+      "NationalNo": null,
+      "PassportNo": passportNumber,
+      "PackageCode": this.packageCode,
+      "Msisdn": this.msisdn,
+      "isClaimed": claim
+    };
+
+    String body = json.encode(test);
+    var apiArea = urls.BASE_URL + '/Postpaid/preSubmitValidation';
+    final Uri url = Uri.parse(apiArea);
+    prefs.getString("accessToken");
+    final access = prefs.getString("accessToken");
+
+    final response = await http.post(
+      url,
+      headers: {
+        "content-type": "application/json",
+        "Authorization": prefs.getString("accessToken")
+      },
+      body: body,
+    );
+    int statusCode = response.statusCode;
+    var data = response.request;
+    print(statusCode);
+    print(data);
+    print(response);
+    print('body: [${response.body}]');
+
+    if (statusCode == 401) {
+      print('401  error ');
+    }
+    if (statusCode == 200) {
+      print("yes");
+      var result = json.decode(response.body);
+      print(result);
+      print('----------------Non-Jordanian PreSubmit---------------');
+      print(result["data"]);
+      if (result["data"] == null) {}
+      if (result["status"] == 0) {
+        print(result["data"]);
+        setState(() {
+          General_price = result["data"]["price"].toString();
+        });
+        print(price);
+        print(General_price);
+        // ✅ Navigate to video recording screen instead of showing dialog
+        _navigateToVideoRecording();
+      } else {}
+
+      print('-------------------------------');
+      print('Sucses API');
+      print(urls.BASE_URL + '/Postpaid/preSubmitValidation');
+
+      return result;
+    } else {}
+  }
+  /*****************************************************************************************************/
+  
+  // ✅ Navigate to video recording screen for eKYC
+  void _navigateToVideoRecording() async {
+    try {
+      // Get available cameras
+      final cameras = await availableCameras();
+      
+      // Get eKYC session UID and token from SharedPreferences or globalVars
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      String sessionUid = globalVars.sessionUid ?? '';
+      String ekycToken = globalVars.ekycTokenID ?? '';
+      
+      print('📹 Navigating to video recording screen...');
+      print('Session UID: $sessionUid');
+      print('MSISDN: $msisdn');
+      
+      // ✅ Navigate to shared video recording screen
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => PostpaidIdentificationSelfRecording(
+            cameras: cameras,
+            sessionUid: sessionUid,
+            ekycToken: ekycToken,
+            onVideoRecorded: (videoPath, videoHash) {
+              // Video successfully recorded and uploaded
+              print('✅ Video recorded successfully!');
+              print('Video Path: $videoPath');
+              print('Video Hash: $videoHash');
+              
+              // Close video recording screen
+              Navigator.pop(context);
+              
+              // ✅ Show confirmation dialog with price
+              _showPriceConfirmationDialog();
+            },
+          ),
+        ),
+      );
+    } catch (e) {
+      print('❌ Error navigating to video recording: $e');
+      showToast(
+        "Error navigating to video recording screen",
+        context: context,
+        animation: StyledToastAnimation.scale,
+        fullWidth: true,
+      );
+    }
+  }
+  
+  // ✅ Show price confirmation dialog after video recording
+  void _showPriceConfirmationDialog() {
+    showAlertDialogSaveData(
+        context,
+        ' المبلغ الكلي المطلوب هو  ${General_price}  دينار، هل انت متأكد؟  ',
+        'The total amount required is ${General_price}JD are you sure you want to continue?');
+  }
 
   showAlertDialog(BuildContext context, arabicMessage, englishMessage) {
     Widget tryAgainButton = TextButton(
@@ -1622,9 +1809,9 @@ class _NonJordainianCustomerInformationState
           height: 58,
           child: TextField(
             controller: FirstName,
-            enabled: true,
+            enabled: !isDataFromEkyc, // ✅ Disable if data from eKYC
             keyboardType: TextInputType.name,
-            style: TextStyle(color: Color(0xff11120e)),
+            style: TextStyle(color: isDataFromEkyc ? Color(0xFF5A6F84) : Color(0xff11120e)),
             decoration: InputDecoration(
               enabledBorder: emptyFirstName == true
                   ? const OutlineInputBorder(
@@ -1672,9 +1859,9 @@ class _NonJordainianCustomerInformationState
           height: 58,
           child: TextField(
             controller: SecondName,
-            enabled: true,
+            enabled: !isDataFromEkyc, // ✅ Disable if data from eKYC
             keyboardType: TextInputType.name,
-            style: TextStyle(color: Color(0xff11120e)),
+            style: TextStyle(color: isDataFromEkyc ? Color(0xFF5A6F84) : Color(0xff11120e)),
             decoration: InputDecoration(
               enabledBorder: emptySecondName == true
                   ? const OutlineInputBorder(
@@ -1722,9 +1909,9 @@ class _NonJordainianCustomerInformationState
           height: 58,
           child: TextField(
             controller: ThirdName,
-            enabled: true,
+            enabled: !isDataFromEkyc, // ✅ Disable if data from eKYC
             keyboardType: TextInputType.name,
-            style: TextStyle(color: Color(0xff11120e)),
+            style: TextStyle(color: isDataFromEkyc ? Color(0xFF5A6F84) : Color(0xff11120e)),
             decoration: InputDecoration(
               enabledBorder: emptyThirdName == true
                   ? const OutlineInputBorder(
@@ -1782,9 +1969,9 @@ class _NonJordainianCustomerInformationState
           height: 58,
           child: TextField(
             controller: LastName,
-            enabled: true,
+            enabled: !isDataFromEkyc, // ✅ Disable if data from eKYC
             keyboardType: TextInputType.name,
-            style: TextStyle(color: Color(0xff11120e)),
+            style: TextStyle(color: isDataFromEkyc ? Color(0xFF5A6F84) : Color(0xff11120e)),
             decoration: InputDecoration(
               enabledBorder: emptyLastName == true
                   ? const OutlineInputBorder(
@@ -1848,9 +2035,10 @@ class _NonJordainianCustomerInformationState
                       width: 90,
                       child: TextField(
                         controller: day,
+                        enabled: !isDataFromEkyc, // ✅ Disable if data from eKYC
                         maxLength: 2,
                         keyboardType: TextInputType.datetime,
-                        style: TextStyle(color: Color(0xff11120e)),
+                        style: TextStyle(color: isDataFromEkyc ? Color(0xFF5A6F84) : Color(0xff11120e)),
                         decoration: InputDecoration(
                           counterText: '',
                           enabledBorder: emptyDay == true ||
@@ -1883,9 +2071,10 @@ class _NonJordainianCustomerInformationState
                       width: 90,
                       child: TextField(
                         controller: month,
+                        enabled: !isDataFromEkyc, // ✅ Disable if data from eKYC
                         maxLength: 2,
                         keyboardType: TextInputType.datetime,
-                        style: TextStyle(color: Color(0xff11120e)),
+                        style: TextStyle(color: isDataFromEkyc ? Color(0xFF5A6F84) : Color(0xff11120e)),
                         decoration: InputDecoration(
                           counterText: '',
                           enabledBorder: emptyMonth == true ||
@@ -1918,9 +2107,10 @@ class _NonJordainianCustomerInformationState
                       width: 150,
                       child: TextField(
                         controller: year,
+                        enabled: !isDataFromEkyc, // ✅ Disable if data from eKYC
                         maxLength: 4,
                         keyboardType: TextInputType.datetime,
-                        style: TextStyle(color: Color(0xff11120e)),
+                        style: TextStyle(color: isDataFromEkyc ? Color(0xFF5A6F84) : Color(0xff11120e)),
                         decoration: InputDecoration(
                           counterText: '',
                           enabledBorder:
@@ -2094,9 +2284,10 @@ class _NonJordainianCustomerInformationState
           height: 58,
           child: TextField(
             controller: documentExpiryDate,
+            enabled: !isDataFromEkyc, // ✅ Disable if data from eKYC
             readOnly: true,
             keyboardType: TextInputType.name,
-            style: TextStyle(color: Color(0xff11120e)),
+            style: TextStyle(color: isDataFromEkyc ? Color(0xFF5A6F84) : Color(0xff11120e)),
             decoration: new InputDecoration(
               enabledBorder: emptyDocumentExpiryDate == true
                   ? const OutlineInputBorder(
@@ -3505,33 +3696,40 @@ class _NonJordainianCustomerInformationState
                   ],
                 ),
               ),
-              Container(
-                height: 60,
-                padding: EdgeInsets.only(top: 8),
-                child: ListTile(
-                  leading: Container(
-                    width: 280,
-                    child: Text(
-                      "Postpaid.passport_photo".tr().toString(),
-                      style: TextStyle(
-                        color: Color(0xFF11120e),
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                  trailing: _loadPassport == true
-                      ? Container(
-                          child: IconButton(
-                              icon: Icon(Icons.delete),
-                              color: Color(0xff0070c9),
-                              onPressed: () => {clearImageIDPassport()}),
-                        )
-                      : null,
-                ),
-              ),
-              Container(child: buildImagePassport()),
-              Permessions.contains('05.02.03.01') == true
+              // ✅ Hide passport capture section when data is from eKYC
+              !isDataFromEkyc
+                  ? Column(
+                      children: [
+                        Container(
+                          height: 60,
+                          padding: EdgeInsets.only(top: 8),
+                          child: ListTile(
+                            leading: Container(
+                              width: 280,
+                              child: Text(
+                                "Postpaid.passport_photo".tr().toString(),
+                                style: TextStyle(
+                                  color: Color(0xFF11120e),
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                            trailing: _loadPassport == true
+                                ? Container(
+                                    child: IconButton(
+                                        icon: Icon(Icons.delete),
+                                        color: Color(0xff0070c9),
+                                        onPressed: () => {clearImageIDPassport()}),
+                                  )
+                                : null,
+                          ),
+                        ),
+                        Container(child: buildImagePassport()),
+                      ],
+                    )
+                  : Container()
+              ,Permessions.contains('05.02.03.01') == true
                   ? Container(
                       height: 60,
                       padding: EdgeInsets.only(top: 8),
@@ -3870,16 +4068,7 @@ class _NonJordainianCustomerInformationState
                               calculateAge();
                             }
 
-                            if (img64Passport == null) {
-                              setState(() {
-                                imagePassportRequired = true;
-                              });
-                            }
-                            if (img64Passport != null) {
-                              setState(() {
-                                imagePassportRequired = false;
-                              });
-                            }
+
 
                             if (Permessions.contains('05.02.03.01') == true) {
                               if (role == "ZainTelesales" &&
@@ -3948,10 +4137,8 @@ class _NonJordainianCustomerInformationState
                                   if (errorDay == false &&
                                       errorMonthe == false &&
                                       birthDateValid == true) {
-                                    showAlertDialogSaveData(
-                                        context,
-                                        ' المبلغ الكلي المطلوب هو  ${General_price}  دينار، هل انت متأكد؟  ',
-                                        'The total amount required is ${General_price}JD are you sure you want to continue?');
+                                    // ✅ Call preSubmitValidation which will navigate to liveness video
+                                    preSubmitValidation_API();
                                   }
                                 }
                               }
@@ -3987,10 +4174,8 @@ class _NonJordainianCustomerInformationState
                                   if (errorDay == false &&
                                       errorMonthe == false &&
                                       birthDateValid == true) {
-                                    showAlertDialogSaveData(
-                                        context,
-                                        ' المبلغ الكلي المطلوب هو  ${General_price}  دينار، هل انت متأكد؟  ',
-                                        'The total amount required is ${General_price}JD are you sure you want to continue?');
+                                    // ✅ Call preSubmitValidation which will navigate to liveness video
+                                    preSubmitValidation_API();
                                   }
                                 }
                               }
@@ -4069,7 +4254,7 @@ class _NonJordainianCustomerInformationState
                                 }
                               }
                               if (role != "ZainTelesales") {
-                                if (img64Passport != null &&
+                                if (
                                     referenceNumber.text != '' &&
                                     documentExpiryDate.text != ''&&
                                     FirstName.text != '' &&
@@ -4099,10 +4284,12 @@ class _NonJordainianCustomerInformationState
                                   if (errorDay == false &&
                                       errorMonthe == false &&
                                       birthDateValid == true) {
-                                    showAlertDialogSaveData(
-                                        context,
-                                        ' المبلغ الكلي المطلوب هو  ${General_price}  دينار، هل انت متأكد؟  ',
-                                        'The total amount required is ${General_price}JD are you sure you want to continue?');
+                                    // showAlertDialogSaveData(
+                                    //     context,
+                                    //     ' المبلغ الكلي المطلوب هو  ${General_price}  دينار، هل انت متأكد؟  ',
+                                    //     'The total amount required is ${General_price}JD are you sure you want to continue?');
+                                    preSubmitValidation_API();
+
                                   }
                                 }
                               }

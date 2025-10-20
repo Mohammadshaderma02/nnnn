@@ -1,7 +1,7 @@
 import 'package:flutter/widgets.dart';
 class APP_URLS {
- //final String BASE_URL= 'https://dsc.jo.zain.com/SalesAppAPI/api';
- final String BASE_URL= 'https://dsc.jo.zain.com/SalesAppAPITest/api';
+ final String BASE_URL= 'https://dsc.jo.zain.com/SalesAppAPI/api';
+ //final String BASE_URL= 'https://dsc.jo.zain.com/SalesAppAPITest/api';
 }
 
 //Kareem@20224  Z@in153428  Test@2025  driver user : 726
